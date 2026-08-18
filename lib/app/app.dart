@@ -18,9 +18,10 @@ class BirlikteApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
-      // Tasarım tek moda göre yapıldıysa burayı ThemeMode.light'a sabitleyeceğiz.
-      themeMode: ThemeMode.system,
+      // Figma'da koyu tema "2. Theme" değişken koleksiyonunda tanımlı, ancak
+      // Variables REST API'si Enterprise plan gerektirdiği için değerler
+      // okunamadı. Uydurmamak için tek moda sabit.
+      themeMode: ThemeMode.light,
       locale: const Locale('tr', 'TR'),
       supportedLocales: const [Locale('tr', 'TR'), Locale('en', 'US')],
       localizationsDelegates: const [

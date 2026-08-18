@@ -3,10 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../features/home/presentation/home_page.dart';
+import '../features/onboarding/presentation/onboarding_page.dart';
 import '../features/splash/presentation/splash_page.dart';
+import '../core/theme/app_dimens.dart';
+import '../core/theme/app_typography.dart';
 import 'routes.dart';
 
-/// Uygulamanın rota tablosu.
+/// Uygulamanın rota tablosu (Figma prototip akışı: 3:12 → onboarding → login → …).
+///
+/// Kimlik doğrulama ekranları (login, sms, welcome, institution-match,
+/// interest-selection) sırayla eklenecek.
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: Routes.splash,
@@ -18,6 +24,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SplashPage(),
       ),
       GoRoute(
+        path: Routes.onboarding,
+        name: 'onboarding',
+        builder: (context, state) => const OnboardingPage(),
+      ),
+      GoRoute(
         path: Routes.home,
         name: 'home',
         builder: (context, state) => const HomePage(),
@@ -26,11 +37,11 @@ final routerProvider = Provider<GoRouter>((ref) {
     errorBuilder: (context, state) => Scaffold(
       body: Center(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(AppSpacing.screenH),
           child: Text(
             'Sayfa bulunamadı\n${state.uri}',
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium,
+            style: AppTypography.bodyMedium,
           ),
         ),
       ),

@@ -46,3 +46,6 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Figma çalışma dosyaları (scratchpad'de tutuluyor)
+/figma-export/
