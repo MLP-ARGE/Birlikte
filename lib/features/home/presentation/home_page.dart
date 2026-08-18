@@ -1,176 +1,164 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../app/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimens.dart';
-import '../../../core/theme/app_typography.dart';
-import '../../../shared/widgets/birlikte_button.dart';
+import '../../../core/theme/app_icons.dart';
+import '../../../shared/widgets/birlikte_bottom_nav.dart';
+import '../../../shared/widgets/birlikte_campaign_card.dart';
+import '../../../shared/widgets/birlikte_section_header.dart';
+import '../../auth/application/verified_profile_provider.dart';
+import '../application/home_providers.dart';
+import '../domain/home_models.dart';
+import 'widgets/ailem_section.dart';
+import 'widgets/home_header.dart';
+import 'widgets/kandas_section.dart';
+import 'widgets/points_card.dart';
+import 'widgets/promo_carousel.dart';
+import 'widgets/quick_tiles.dart';
 
-/// Geçici tema doğrulama ekranı.
+/// Ana sayfa (Figma: `home-page` 199:298).
 ///
-/// !!! GEÇİCİ !!! Figma'daki gerçek `home-page` (199:298) ile değiştirilecek.
-/// Şu anki amacı, Figma'dan çıkarılan tokenların cihazda doğru render
-/// edildiğini gözle kontrol etmek.
+/// Bölümler: hızlı erişim, puan kartı, "Sana Özel", "Yakında Sona Erecek",
+/// "Kan İhtiyacı Olanlar", "Ailem". Alt navigasyon 5 sekme.
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
+  /// Figma `scroll-content`: bölümler arası 16.
+  static const _sectionGap = AppSpacing.s5;
+
+  /// Bölüm başlığı ile içeriği arası.
+  static const _headerGap = 14.0;
+
+  /// Kampanya karuseli yüksekliği (Figma: `Card / Campaign` 348).
+  static const _campaignCarouselHeight = 348.0;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final profile = ref.watch(verifiedProfileProvider);
+    final points = ref.watch(pointsSummaryProvider);
+    final offers = ref.watch(promoOffersProvider);
+    final campaigns = ref.watch(endingSoonCampaignsProvider);
+    final requests = ref.watch(bloodRequestsProvider);
+    final members = ref.watch(familyMembersProvider);
+    final capacity = ref.watch(familyCapacityProvider);
+
+    // Karuseller ekran kenarına kadar kaydığı için yatay boşluk bölüm bölüm
+    // veriliyor, sayfanın tamamına değil.
+    Widget inset(Widget child) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
+      child: child,
+    );
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Tasarım sistemi kontrolü')),
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.screenH),
-        children: [
-          _Section(
-            title: 'Tipografi',
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Display 32/700', style: AppTypography.display),
-                Text('Heading H1 28/700', style: AppTypography.h1),
-                Text('Heading H3 20/600', style: AppTypography.h3),
-                Text('Body Large 16/400', style: AppTypography.bodyLarge),
-                Text(
-                  'Caption 12/400',
-                  style: AppTypography.caption.copyWith(
-                    color: AppColors.textSecondary,
+      backgroundColor: AppColors.surface,
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            HomeHeader(profile: profile, hasNotifications: true),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.only(bottom: AppSpacing.s8),
+                children: [
+                  inset(
+                    QuickTiles(
+                      tiles: [
+                        QuickTile(
+                          label: 'Kuponlar',
+                          icon: AppIcons.ticket,
+                          onTap: () => context.go(Routes.wallet),
+                        ),
+                        QuickTile(
+                          label: 'Puanlar',
+                          icon: AppIcons.sparkles,
+                          onTap: () => context.go(Routes.wallet),
+                        ),
+                        QuickTile(
+                          label: 'Kampanya',
+                          icon: AppIcons.ticketPercent,
+                          onTap: () => context.go(Routes.campaigns),
+                        ),
+                        QuickTile(
+                          label: 'Kandaş',
+                          icon: AppIcons.droplet,
+                          onTap: () => context.go(Routes.kandas),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: AppSpacing.s3),
-                Text('BRLK-4F92-KX', style: AppTypography.couponCodeLarge),
-                Text(
-                  '2.450 puan',
-                  style: AppTypography.numericLarge.copyWith(
-                    color: AppColors.textBrand,
+                  const SizedBox(height: _sectionGap),
+                  inset(
+                    PointsCard(
+                      summary: points,
+                      onTap: () => context.go(Routes.wallet),
+                      onSpendTap: () => context.go(Routes.wallet),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          _Section(
-            title: 'Butonlar',
-            child: Column(
-              children: [
-                for (final (style, label) in const [
-                  (BirlikteButtonStyle.primary, 'Primary'),
-                  (BirlikteButtonStyle.secondary, 'Secondary'),
-                  (BirlikteButtonStyle.tertiary, 'Tertiary'),
-                  (BirlikteButtonStyle.ghost, 'Ghost'),
-                  (BirlikteButtonStyle.destructive, 'Destructive'),
-                ]) ...[
-                  BirlikteButton(
-                    label: label,
-                    onPressed: () {},
-                    style: style,
-                    trailingIcon: Icons.chevron_right,
+                  const SizedBox(height: _sectionGap),
+                  inset(
+                    BirlikteSectionHeader(
+                      title: 'Sana Özel',
+                      actionLabel: 'Tümünü Gör',
+                      onAction: () => context.go(Routes.campaigns),
+                    ),
                   ),
-                  const SizedBox(height: AppSpacing.s3),
+                  const SizedBox(height: _headerGap),
+                  PromoCarousel(offers: offers),
+                  const SizedBox(height: _sectionGap),
+                  inset(
+                    BirlikteSectionHeader(
+                      title: 'Yakında Sona Erecek',
+                      actionLabel: 'Tümünü Gör',
+                      onAction: () => context.go(Routes.campaigns),
+                    ),
+                  ),
+                  const SizedBox(height: _headerGap),
+                  _CampaignCarousel(
+                    campaigns: campaigns,
+                    height: _campaignCarouselHeight,
+                  ),
+                  const SizedBox(height: _sectionGap),
+                  inset(KandasSection(requests: requests)),
+                  const SizedBox(height: _sectionGap),
+                  inset(
+                    AilemSection(members: members, capacity: capacity),
+                  ),
                 ],
-                const BirlikteButton(label: 'Disabled', onPressed: null),
-                const SizedBox(height: AppSpacing.s3),
-                const BirlikteButton(
-                  label: 'Loading',
-                  onPressed: null,
-                  isLoading: true,
-                ),
-                const SizedBox(height: AppSpacing.s3),
-              ],
+              ),
             ),
-          ),
-          const _Section(
-            title: 'Renkler',
-            child: Wrap(
-              spacing: AppSpacing.s3,
-              runSpacing: AppSpacing.s3,
-              children: [
-                _Swatch('brand.600', AppColors.brand),
-                _Swatch('brand.700', AppColors.actionPrimaryPressed),
-                _Swatch('surface.brand', AppColors.surfaceBrand),
-                _Swatch('surface.inverse', AppColors.surfaceInverse),
-                _Swatch('success', AppColors.textSuccess),
-                _Swatch('warning', AppColors.textWarning),
-                _Swatch('error', AppColors.actionDestructive),
-                _Swatch('info', AppColors.textInfo),
-              ],
-            ),
-          ),
-          _Section(
-            title: 'Form',
-            child: Column(
-              children: [
-                const TextField(
-                  decoration: InputDecoration(
-                    labelText: 'Telefon numarası',
-                    hintText: '+90 5__ ___ __ __',
-                    helperText: 'Kurumda kayıtlı numaranı gir.',
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.s5),
-                Row(
-                  children: [
-                    Switch(value: true, onChanged: (_) {}),
-                    const SizedBox(width: AppSpacing.s5),
-                    Checkbox(value: true, onChanged: (_) {}),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Section extends StatelessWidget {
-  const _Section({required this.title, required this.child});
-
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpacing.sectionGap),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title.toUpperCase(),
-            style: AppTypography.overline.copyWith(
-              color: AppColors.textTertiary,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.s4),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-class _Swatch extends StatelessWidget {
-  const _Swatch(this.label, this.color);
-
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          height: 56,
-          width: 72,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-            border: Border.all(color: AppColors.borderDefault),
-          ),
+          ],
         ),
-        const SizedBox(height: AppSpacing.s2),
-        Text(label, style: AppTypography.labelSmall),
-      ],
+      ),
+      bottomNavigationBar: BirlikteBottomNav(
+        current: BirlikteTab.home,
+        onSelected: (tab) => context.go(tab.route),
+      ),
+    );
+  }
+}
+
+/// "Yakında Sona Erecek" karuseli (Figma: `card-carousel` 201:237 — gap 12).
+class _CampaignCarousel extends StatelessWidget {
+  const _CampaignCarousel({required this.campaigns, required this.height});
+
+  final List<Campaign> campaigns;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: height,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
+        itemCount: campaigns.length,
+        separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.s4),
+        itemBuilder: (context, i) =>
+            BirlikteCampaignCard(campaign: campaigns[i]),
+      ),
     );
   }
 }

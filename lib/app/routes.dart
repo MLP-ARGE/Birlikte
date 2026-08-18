@@ -9,4 +9,10 @@ abstract final class Routes {
   static const welcome = '/welcome';
   static const interestSelection = '/interest-selection';
   static const home = '/home';
+
+  // Alt navigasyon sekmeleri (Figma: `bottom-nav` 148:389).
+  static const campaigns = '/kampanyalar';
+  static const wallet = '/cuzdanim';
+  static const kandas = '/kandas';
+  static const profile = '/profil';
 }

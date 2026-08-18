@@ -58,7 +58,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
 
-      expect(find.text('Tasarım sistemi kontrolü'), findsOneWidget);
+      expect(find.text('Giriş yap'), findsOneWidget);
     });
 
     testWidgets('Atla onboarding’i tümden geçer', (tester) async {
@@ -68,7 +68,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
 
-      expect(find.text('Tasarım sistemi kontrolü'), findsOneWidget);
+      expect(find.text('Giriş yap'), findsOneWidget);
     });
   });
 }
