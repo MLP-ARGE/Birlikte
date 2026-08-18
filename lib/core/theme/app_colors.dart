@@ -97,6 +97,10 @@ abstract final class AppColors {
   static const textDisabled = Palette.neutral400;
   static const textOnBrand = Palette.neutral0;
 
+  /// Koyu zemin üzerindeki ikincil metin (Figma: `points-card` alt satırı).
+  /// Tasarım sisteminde adı yok, koyu kartlar için gerekli.
+  static const textOnInverseMuted = Palette.neutral400;
+
   // Action
   static const actionPrimary = Palette.brand600;
   static const actionPrimaryPressed = Palette.brand700;

@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/routes.dart';
+import '../../../core/assets/app_assets.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimens.dart';
+import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/birlikte_button.dart';
 
@@ -29,7 +31,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
       description: 'Medical Park, Liv Hospital, Liv Koleji ve İstinye '
           'Üniversitesi çalışanlarına özel kampanya ve ayrıcalıklar tek '
           'uygulamada.',
-      // TODO(assets): kurum logoları 2x2 grid — Figma'dan SVG olarak alınacak.
       visual: _SlideVisual.institutionGrid,
     ),
     _Slide(
@@ -37,11 +38,13 @@ class _OnboardingPageState extends State<OnboardingPage> {
       description: 'Sana özel kampanyalardan yararlan, her kullanımda puan '
           'biriktir.',
       visual: _SlideVisual.illustration,
+      asset: AppAssets.onboardingCampaigns,
     ),
     _Slide(
       headline: 'Kuponlarınızı Kolayca Kullanın',
       description: 'Kupon kodunuzu oluşturun, mağazada veya online kullanın',
       visual: _SlideVisual.illustration,
+      asset: AppAssets.onboardingCoupons,
     ),
   ];
 
@@ -62,8 +65,8 @@ class _OnboardingPageState extends State<OnboardingPage> {
     }
   }
 
-  // TODO(login): login ekranı eklenince Routes.login'e yönlenecek.
-  void _finish() => context.go(Routes.home);
+  /// Onboarding'in sonu ve "Atla" — Figma akışında ikisi de login'e gidiyor.
+  void _finish() => context.go(Routes.login);
 
   @override
   Widget build(BuildContext context) {
@@ -74,9 +77,10 @@ class _OnboardingPageState extends State<OnboardingPage> {
           children: [
             // "Atla" — sağ üstte tertiary pill
             Padding(
+              // Figma: top-bar 56 yüksek, btn-skip 36 → dikey 10.
               padding: const EdgeInsets.symmetric(
                 horizontal: AppSpacing.screenH,
-                vertical: AppSpacing.s3,
+                vertical: 10,
               ),
               child: Align(
                 alignment: Alignment.centerRight,
@@ -98,11 +102,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
               ),
             ),
             Padding(
+              // Figma: bottom 136 = pad 16 + dots + 20 + buton 52 + safe-area 20.
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.screenH,
                 AppSpacing.s5,
                 AppSpacing.screenH,
-                AppSpacing.s7,
+                AppSpacing.s6,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -112,7 +117,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   BirlikteButton(
                     label: 'Devam',
                     onPressed: _next,
-                    trailingIcon: Icons.chevron_right,
+                    trailingIcon: AppIcons.chevronRight,
                   ),
                 ],
               ),
@@ -131,33 +136,49 @@ class _Slide {
     required this.headline,
     required this.description,
     required this.visual,
+    this.asset,
   });
 
   final String headline;
   final String description;
   final _SlideVisual visual;
+
+  /// `_SlideVisual.illustration` için görsel yolu.
+  final String? asset;
 }
 
 class _SlideView extends StatelessWidget {
   const _SlideView({required this.slide});
 
+  /// Figma `content` içindeki iki spacer: 20 + 40.
+  static const _topGap = 60.0;
+
+  /// Figma `illustration-container` yüksekliği.
+  static const _visualH = 370.0;
+
   final _Slide slide;
 
   @override
   Widget build(BuildContext context) {
+    // Figma `content` 390x610: spacer 20 + spacer 40 + görsel 370 + metin 160.
+    // Görsel [Flexible] — Column önce metni yerleştirip kalan alanı ona verir.
+    // 844 yüksekliğinde tam 370 olur; kısa ekranlarda küçülür, asla taşmaz.
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Center(
+          const SizedBox(height: _topGap),
+          Flexible(
+            child: SizedBox(
+              height: _visualH,
               child: slide.visual == _SlideVisual.institutionGrid
                   ? const _InstitutionGrid()
-                  : const _IllustrationPlaceholder(),
+                  : _Illustration(asset: slide.asset!),
             ),
           ),
           Text(slide.headline, style: AppTypography.display),
+          // Figma: text-group gap 12.
           const SizedBox(height: AppSpacing.s4),
           Text(
             slide.description,
@@ -171,74 +192,58 @@ class _SlideView extends StatelessWidget {
   }
 }
 
-/// Kurum logolarının 2x2 gridi.
+/// Kurum logolarının 2x2 gridi (Figma: `illustration-container` 182:494).
 ///
-/// TODO(assets): logolar Figma'dan SVG olarak indirilip buraya konacak.
-/// Marka renkleri Figma'daki kart dolgularından alındı.
+/// Kartlar Figma'dan @3x PNG olarak alındı — arka plan rengi, logo ve radius (14)
+/// görselin içinde. Böylece marka logoları birebir tasarımdaki gibi görünüyor.
 class _InstitutionGrid extends StatelessWidget {
   const _InstitutionGrid();
 
-  static const _cards = <(String, Color)>[
-    ('liv koleji', Color(0xFF0E86C4)),
-    ('Medical Park', Color(0xFFE8262C)),
-    ('İSÜ', Color(0xFF1B3050)),
-    ('liv HOSPITAL', Color(0xFF0E9BD1)),
+  /// Figma'da satır ve kolon boşluğu 10 — 4dp ölçeğinin dışında, o yüzden
+  /// [AppSpacing] tokenı yok.
+  static const _gap = 10.0;
+
+  static const _cards = <String>[
+    AppAssets.brandLivKoleji,
+    AppAssets.brandMedicalPark,
+    AppAssets.brandIstinyeUniversitesi,
+    AppAssets.brandLivHospital,
   ];
 
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 2,
-      mainAxisSpacing: AppSpacing.s4,
-      crossAxisSpacing: AppSpacing.s4,
-      childAspectRatio: 166 / 116,
-      children: [
-        for (final (name, color) in _cards)
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(AppSpacing.s4),
-                child: Text(
-                  name,
-                  textAlign: TextAlign.center,
-                  style: AppTypography.h5.copyWith(color: AppColors.surface),
-                ),
-              ),
-            ),
-          ),
-      ],
+    // Figma: 342x242 (iki satır 116 + 10 boşluk). [FittedBox] dar/kısa
+    // ekranlarda oranı bozmadan küçültür.
+    return FittedBox(
+      child: SizedBox(
+        width: 342,
+        height: 242,
+        child: GridView.count(
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          mainAxisSpacing: _gap,
+          crossAxisSpacing: _gap,
+          childAspectRatio: 166 / 116,
+          children: [
+            for (final asset in _cards) Image.asset(asset, fit: BoxFit.contain),
+          ],
+        ),
+      ),
     );
   }
 }
 
-/// TODO(assets): 3D illüstrasyonlar Figma'dan PNG olarak alınacak.
-class _IllustrationPlaceholder extends StatelessWidget {
-  const _IllustrationPlaceholder();
+/// Onboarding illüstrasyonu (Figma: `illustration` 342x300).
+class _Illustration extends StatelessWidget {
+  const _Illustration({required this.asset});
+
+  final String asset;
 
   @override
   Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 1,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: AppColors.surfaceBrand,
-          borderRadius: BorderRadius.circular(AppRadius.xl),
-        ),
-        child: const Center(
-          child: Icon(
-            Icons.image_outlined,
-            size: 48,
-            color: AppColors.iconBrand,
-          ),
-        ),
-      ),
-    );
+    // Kutuyu doldurur, `contain` oranı korur — Figma'da 342x300 görsel
+    // 342x370 konteynerin içinde dikey ortalı duruyor, aynı sonuç.
+    return Image.asset(asset, fit: BoxFit.contain);
   }
 }
 

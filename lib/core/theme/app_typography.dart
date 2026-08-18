@@ -85,6 +85,10 @@ abstract final class AppTypography {
   static final numericLarge = _sans(32, 38, 700, letterSpacing: -0.64);
   static final promotionalValue = _sans(22, 28, 700, letterSpacing: -0.22);
 
+  /// Kampanya kartındaki indirim değeri (Figma: `Card / Campaign` footer,
+  /// 18/700). Ölçekte h4 18/600 var ama kartın odak noktası daha kalın.
+  static final campaignValue = _sans(18, 24, 700);
+
   // Kupon kodu — monospace
   static final couponCodeLarge = _mono(24, 32, 700, letterSpacing: 2.88);
   static final couponCodeSmall = _mono(15, 20, 500, letterSpacing: 1.2);
