@@ -1,30 +1,25 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
+import 'package:birlikte/app/app.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:birlikte/main.dart';
-
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
-
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+  testWidgets('uygulama açılışta splash ekranını gösterir', (tester) async {
+    await tester.pumpWidget(const ProviderScope(child: BirlikteApp()));
     await tester.pump();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('Birlikte'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    // Splash'ın yönlendirme zamanlayıcısını boşalt, aksi hâlde test
+    // "Timer is still pending" ile düşer.
+    await tester.pumpAndSettle(const Duration(seconds: 2));
+  });
+
+  testWidgets('splash sonrası ana ekrana geçer', (tester) async {
+    await tester.pumpWidget(const ProviderScope(child: BirlikteApp()));
+    await tester.pumpAndSettle(const Duration(seconds: 2));
+
+    expect(find.text('İskelet hazır'), findsOneWidget);
   });
 }
