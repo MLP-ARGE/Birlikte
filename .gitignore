@@ -49,3 +49,6 @@ app.*.map.json
 
 # Figma çalışma dosyaları (scratchpad'de tutuluyor)
 /figma-export/
+
+# Golden test karşılaştırma çıktıları (başarısız testte üretilir)
+test/failures/
