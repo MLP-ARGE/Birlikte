@@ -6,7 +6,6 @@ import '../../../app/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimens.dart';
 import '../../../core/theme/app_icons.dart';
-import '../../../shared/widgets/birlikte_bottom_nav.dart';
 import '../../../shared/widgets/birlikte_campaign_card.dart';
 import '../../../shared/widgets/birlikte_section_header.dart';
 import '../../auth/application/verified_profile_provider.dart';
@@ -42,6 +41,7 @@ class HomePage extends ConsumerWidget {
     final offers = ref.watch(promoOffersProvider);
     final campaigns = ref.watch(endingSoonCampaignsProvider);
     final requests = ref.watch(bloodRequestsProvider);
+    final favorites = ref.watch(favoriteCampaignIdsProvider);
     final members = ref.watch(familyMembersProvider);
     final capacity = ref.watch(familyCapacityProvider);
 
@@ -106,7 +106,14 @@ class HomePage extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: _headerGap),
-                  PromoCarousel(offers: offers),
+                  PromoCarousel(
+                    offers: offers,
+                    onOfferTap: (offer) {
+                      if (offer.campaignId case final id?) {
+                        context.push(Routes.campaignDetail(id));
+                      }
+                    },
+                  ),
                   const SizedBox(height: _sectionGap),
                   inset(
                     BirlikteSectionHeader(
@@ -119,6 +126,10 @@ class HomePage extends ConsumerWidget {
                   _CampaignCarousel(
                     campaigns: campaigns,
                     height: _campaignCarouselHeight,
+                    favorites: favorites,
+                    onToggleFavorite: (id) => ref
+                        .read(favoriteCampaignIdsProvider.notifier)
+                        .toggle(id),
                   ),
                   const SizedBox(height: _sectionGap),
                   inset(KandasSection(requests: requests)),
@@ -132,20 +143,23 @@ class HomePage extends ConsumerWidget {
           ],
         ),
       ),
-      bottomNavigationBar: BirlikteBottomNav(
-        current: BirlikteTab.home,
-        onSelected: (tab) => context.go(tab.route),
-      ),
     );
   }
 }
 
 /// "Yakında Sona Erecek" karuseli (Figma: `card-carousel` 201:237 — gap 12).
 class _CampaignCarousel extends StatelessWidget {
-  const _CampaignCarousel({required this.campaigns, required this.height});
+  const _CampaignCarousel({
+    required this.campaigns,
+    required this.height,
+    required this.favorites,
+    required this.onToggleFavorite,
+  });
 
   final List<Campaign> campaigns;
   final double height;
+  final Set<String> favorites;
+  final ValueChanged<String> onToggleFavorite;
 
   @override
   Widget build(BuildContext context) {
@@ -156,8 +170,15 @@ class _CampaignCarousel extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
         itemCount: campaigns.length,
         separatorBuilder: (_, _) => const SizedBox(width: AppSpacing.s4),
-        itemBuilder: (context, i) =>
-            BirlikteCampaignCard(campaign: campaigns[i]),
+        itemBuilder: (context, i) {
+          final campaign = campaigns[i];
+          return BirlikteCampaignCard(
+            campaign: campaign,
+            isFavorite: favorites.contains(campaign.id),
+            onTap: () => context.push(Routes.campaignDetail(campaign.id)),
+            onFavoriteTap: () => onToggleFavorite(campaign.id),
+          );
+        },
       ),
     );
   }

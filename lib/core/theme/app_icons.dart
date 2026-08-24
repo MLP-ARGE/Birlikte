@@ -38,6 +38,11 @@ abstract final class AppIcons {
   static const IconData heart = LucideIcons.heart300;
   static const IconData plus = LucideIcons.plus300;
   static const IconData gift = LucideIcons.gift300;
+  static const IconData search = LucideIcons.search300;
+  static const IconData filter = LucideIcons.slidersHorizontal300;
+  static const IconData searchOff = LucideIcons.searchX300;
+  static const IconData share = LucideIcons.share2300;
+  static const IconData star = LucideIcons.star300;
   static const IconData userPlus = LucideIcons.userPlus300;
 
   // Kurum & kimlik

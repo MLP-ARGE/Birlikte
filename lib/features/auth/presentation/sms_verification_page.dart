@@ -105,12 +105,14 @@ class _SmsVerificationPageState extends State<SmsVerificationPage> {
               onClose: () => context.go(Routes.login),
             ),
             Expanded(
-              child: Padding(
+              // Klavye açıldığında bu alan küçülür; içerik kaydırılabilir
+              // olduğu için taşma değil kaydırma olur.
+              child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.screenH,
                   _contentTop,
                   AppSpacing.screenH,
-                  _bottomInset,
+                  0,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -138,13 +140,22 @@ class _SmsVerificationPageState extends State<SmsVerificationPage> {
                       remaining: _remaining,
                       onResend: _canResend ? _startCountdown : null,
                     ),
-                    const Spacer(),
-                    BirlikteButton(
-                      label: 'Doğrula',
-                      onPressed: _complete ? _verify : null,
-                    ),
                   ],
                 ),
+              ),
+            ),
+            // Sabit alt bölüm — kaydırma alanının dışında, klavye açıkken de
+            // her zaman görünür (Figma: safe-area 28).
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenH,
+                AppSpacing.s5,
+                AppSpacing.screenH,
+                _bottomInset,
+              ),
+              child: BirlikteButton(
+                label: 'Doğrula',
+                onPressed: _complete ? _verify : null,
               ),
             ),
           ],

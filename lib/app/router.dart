@@ -8,8 +8,11 @@ import '../features/auth/presentation/login_page.dart';
 import '../features/auth/presentation/sms_verification_page.dart';
 import '../features/auth/presentation/verification_error_page.dart';
 import '../features/auth/presentation/welcome_page.dart';
+import '../features/campaigns/presentation/campaign_detail_page.dart';
+import '../features/campaigns/presentation/campaigns_list_page.dart';
 import '../features/home/presentation/home_page.dart';
 import '../shared/pages/coming_soon_page.dart';
+import '../shared/widgets/app_shell.dart';
 import '../shared/widgets/birlikte_bottom_nav.dart';
 import '../features/onboarding/presentation/onboarding_page.dart';
 import '../features/splash/presentation/splash_page.dart';
@@ -73,20 +76,60 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'interest-selection',
         builder: (context, state) => const InterestSelectionPage(),
       ),
+      // Kampanya detayı bilinçli olarak shell'in DIŞINDA, kök seviyede bir
+      // rota — Figma'da bu ekranda alt navigasyon yok (CTA bar en altta).
+      // Branch içine gömülseydi AppShell'in bottomNavigationBar'ı her zaman
+      // görünür kalırdı; kök seviyede olması ekranı tam kaplıyor ve normal
+      // push/pop geçiş animasyonu alıyor — bu da doğru, çünkü "derine giriş"
+      // sekme değişimiyle aynı hareket değil.
       GoRoute(
-        path: Routes.home,
-        name: 'home',
-        builder: (context, state) => const HomePage(),
+        path: Routes.campaignDetailSegment,
+        name: 'campaign-detail',
+        builder: (context, state) => CampaignDetailPage(
+          campaignId: state.pathParameters['id']!,
+        ),
       ),
-      // Alt navigasyonun diğer sekmeleri. Tasarımları Figma'da var; ekranları
-      // kurulana kadar iskele sayfaya düşüyor, navigasyon çalışır kalsın.
-      for (final tab in BirlikteTab.values)
-        if (tab != BirlikteTab.home)
-          GoRoute(
-            path: tab.route,
-            name: tab.name,
-            builder: (context, state) => ComingSoonPage(tab: tab),
+      // Alt navigasyonun 5 sekmesi — her biri kendi Navigator'ına sahip bir
+      // "branch". Sekmeler arası geçişte push/pop animasyonu oynamaz ve her
+      // sekme kendi durumunu (scroll konumu, form girdisi) korur; bu,
+      // native uygulamalardaki tab bar davranışının aynısıdır.
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) =>
+            AppShell(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: Routes.home,
+                name: 'home',
+                builder: (context, state) => const HomePage(),
+              ),
+            ],
           ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: Routes.campaigns,
+                name: BirlikteTab.campaigns.name,
+                builder: (context, state) => const CampaignsListPage(),
+              ),
+            ],
+          ),
+          // Tasarımları Figma'da var; ekranları kurulana kadar iskele
+          // sayfaya düşüyor, navigasyon çalışır kalsın.
+          for (final tab in BirlikteTab.values)
+            if (tab != BirlikteTab.home && tab != BirlikteTab.campaigns)
+              StatefulShellBranch(
+                routes: [
+                  GoRoute(
+                    path: tab.route,
+                    name: tab.name,
+                    builder: (context, state) => ComingSoonPage(tab: tab),
+                  ),
+                ],
+              ),
+        ],
+      ),
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(

@@ -150,6 +150,10 @@ class _BirlikteTextFieldState extends State<BirlikteTextField> {
               decoration: InputDecoration(
                 isDense: true,
                 counterText: '',
+                // Global tema `filled: true, fillColor: surface` dayatıyor;
+                // belirtilmezse bu alanın kendi çizdiği surfaceSunken dolgunun
+                // üstüne beyaz bir katman boyanıp arka planı ezer.
+                filled: false,
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,

@@ -21,6 +21,8 @@ class BirlikteCampaignCard extends StatelessWidget {
     this.onTap,
     this.onFavoriteTap,
     this.width = 260,
+    this.imageHeight = 151,
+    this.isFavorite,
   });
 
   final Campaign campaign;
@@ -28,7 +30,16 @@ class BirlikteCampaignCard extends StatelessWidget {
   final VoidCallback? onFavoriteTap;
   final double width;
 
-  static const _imageHeight = 151.0;
+  /// Figma: karusel kartı 151, Kampanyalar listesindeki tam genişlik kartı
+  /// 198.
+  final double imageHeight;
+
+  /// Verilmezse `campaign.favorite` seed değeri kullanılır. Favori durumu
+  /// canlı bir provider'dan geliyorsa (bkz. `favoriteCampaignIdsProvider`)
+  /// çağıran taraf bunu buradan geçirmeli — aksi halde kart, kampanya
+  /// nesnesi yeniden oluşturulmadan güncellenmez.
+  final bool? isFavorite;
+
   static const _favoriteSize = 36.0;
 
   @override
@@ -51,7 +62,7 @@ class BirlikteCampaignCard extends StatelessWidget {
                 top: Radius.circular(AppRadius.md),
               ),
               child: SizedBox(
-                height: _imageHeight,
+                height: imageHeight,
                 width: double.infinity,
                 child: Stack(
                   children: [
@@ -60,7 +71,7 @@ class BirlikteCampaignCard extends StatelessWidget {
                       top: AppSpacing.s4,
                       right: AppSpacing.s4,
                       child: _FavoriteButton(
-                        active: campaign.favorite,
+                        active: isFavorite ?? campaign.favorite,
                         onTap: onFavoriteTap,
                       ),
                     ),

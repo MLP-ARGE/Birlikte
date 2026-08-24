@@ -15,4 +15,9 @@ abstract final class Routes {
   static const wallet = '/cuzdanim';
   static const kandas = '/kandas';
   static const profile = '/profil';
+
+  /// Kampanya detayı — kök seviyede, alt navigasyonun dışında (Figma:
+  /// `campaign-detail` 3:686'da bottom-nav yok, CTA bar en altta).
+  static const campaignDetailSegment = '$campaigns/kampanya/:id';
+  static String campaignDetail(String id) => '$campaigns/kampanya/$id';
 }

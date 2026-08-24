@@ -77,77 +77,105 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       backgroundColor: AppColors.surface,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenH,
-            _contentTop,
-            AppSpacing.screenH,
-            _bottomInset,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Image.asset(AppAssets.logoBirlikte, height: 44),
-              const SizedBox(height: _afterLogo),
-              Text('Giriş yap', style: AppTypography.display),
-              // Figma: heading gap 12.
-              const SizedBox(height: AppSpacing.s4),
-              Text(
-                'Burada çalıştığın için sana özel ayrıcalıklara erişmek '
-                'üzeresin.',
-                style: AppTypography.bodyLarge.copyWith(
-                  color: AppColors.textSecondary,
+        // Klavye açıldığında Scaffold body'yi küçültür; içerik burada
+        // kaydırılabilir olduğu için taşma değil kaydırma olur. Sabit
+        // Spacer'lı tek Column kullanmak (önceki hâl) klavye açılınca
+        // "BOTTOM OVERFLOWED" hatasına yol açıyordu.
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenH,
+                  _contentTop,
+                  AppSpacing.screenH,
+                  0,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Image.asset(AppAssets.logoBirlikte, height: 44),
+                    const SizedBox(height: _afterLogo),
+                    Text('Giriş yap', style: AppTypography.display),
+                    // Figma: heading gap 12.
+                    const SizedBox(height: AppSpacing.s4),
+                    Text(
+                      'Burada çalıştığın için sana özel ayrıcalıklara erişmek '
+                      'üzeresin.',
+                      style: AppTypography.bodyLarge.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: _afterHeading),
+                    BirlikteSegmentedControl<LoginMethod>(
+                      value: _method,
+                      onChanged: _onMethodChanged,
+                      segments: const [
+                        BirlikteSegment(
+                          value: LoginMethod.phone,
+                          label: 'Telefon',
+                        ),
+                        BirlikteSegment(value: LoginMethod.tckn, label: 'TCKN'),
+                      ],
+                    ),
+                    const SizedBox(height: _afterSegments),
+                    BirlikteTextField(
+                      key: ValueKey(_method),
+                      controller: _controller,
+                      label: isPhone ? 'Telefon numarası' : 'TC Kimlik No',
+                      required: true,
+                      hint: isPhone ? '+90 5__ ___ __ __' : '___________',
+                      helper: isPhone
+                          ? 'Kurumda kayıtlı numaranı gir.'
+                          : 'Kurumda kayıtlı TC kimlik numaranı gir.',
+                      keyboardType: TextInputType.number,
+                      textInputAction: TextInputAction.done,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        if (isPhone)
+                          const _PhoneNumberFormatter()
+                        else
+                          LengthLimitingTextInputFormatter(11),
+                      ],
+                      onChanged: (_) => setState(() {}),
+                      onSubmitted: (_) {
+                        if (_valid) _submit();
+                      },
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: _afterHeading),
-              BirlikteSegmentedControl<LoginMethod>(
-                value: _method,
-                onChanged: _onMethodChanged,
-                segments: const [
-                  BirlikteSegment(value: LoginMethod.phone, label: 'Telefon'),
-                  BirlikteSegment(value: LoginMethod.tckn, label: 'TCKN'),
+            ),
+            // Sabit alt bölüm — kaydırma alanının dışında, klavye açıkken de
+            // her zaman görünür (Figma: legal metin + buton, safe-area 28).
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenH,
+                AppSpacing.s5,
+                AppSpacing.screenH,
+                _bottomInset,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Devam ederek Kullanım Koşulları ve KVKK Aydınlatma '
+                    "Metni'ni okuduğunu kabul etmiş olursun.",
+                    style: AppTypography.caption.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  // Figma: legal ile buton arası 16.
+                  const SizedBox(height: AppSpacing.s5),
+                  BirlikteButton(
+                    label: 'Devam',
+                    onPressed: _valid ? _submit : null,
+                  ),
                 ],
               ),
-              const SizedBox(height: _afterSegments),
-              BirlikteTextField(
-                key: ValueKey(_method),
-                controller: _controller,
-                label: isPhone ? 'Telefon numarası' : 'TC Kimlik No',
-                required: true,
-                hint: isPhone ? '+90 5__ ___ __ __' : '___________',
-                helper: isPhone
-                    ? 'Kurumda kayıtlı numaranı gir.'
-                    : 'Kurumda kayıtlı TC kimlik numaranı gir.',
-                keyboardType: TextInputType.number,
-                textInputAction: TextInputAction.done,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  if (isPhone)
-                    const _PhoneNumberFormatter()
-                  else
-                    LengthLimitingTextInputFormatter(11),
-                ],
-                onChanged: (_) => setState(() {}),
-                onSubmitted: (_) {
-                  if (_valid) _submit();
-                },
-              ),
-              const Spacer(),
-              Text(
-                "Devam ederek Kullanım Koşulları ve KVKK Aydınlatma Metni'ni "
-                'okuduğunu kabul etmiş olursun.',
-                style: AppTypography.caption.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              // Figma: legal ile buton arası 16.
-              const SizedBox(height: AppSpacing.s5),
-              BirlikteButton(
-                label: 'Devam',
-                onPressed: _valid ? _submit : null,
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
