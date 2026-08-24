@@ -165,6 +165,10 @@ class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: AppColors.surface,
+      // Kategori sayısı (Tümü + 8) modalın varsayılan yüksekliğini aşıyor;
+      // isScrollControlled olmadan bu, içerik kırpılmadan taşma uyarısına
+      // (sarı-siyah şerit) yol açıyordu.
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
@@ -419,33 +423,42 @@ class _CategoryFilterSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Tümü + 8 kategori, sabit yükseklikli modalın varsayılan alanını
+    // aşabiliyor (kısa ekranlarda, büyük yazı tipi ölçeğinde). İçerik
+    // sığdığında olduğu boyutta durur, sığmadığında kendi içinde kaydırır —
+    // dışarıdaki modal büyümez.
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.7;
+
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          AppSpacing.screenH,
-          AppSpacing.s5,
-          AppSpacing.screenH,
-          AppSpacing.s5,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Kategori', style: AppTypography.h4),
-            const SizedBox(height: AppSpacing.s4),
-            _FilterRow(
-              label: 'Tümü',
-              selected: selected == null,
-              onTap: () => onSelected(null),
-            ),
-            for (final category in CampaignCategory.values)
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.screenH,
+            AppSpacing.s5,
+            AppSpacing.screenH,
+            AppSpacing.s5,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Kategori', style: AppTypography.h4),
+              const SizedBox(height: AppSpacing.s4),
               _FilterRow(
-                label: category.label,
-                selected: selected == category,
-                onTap: () => onSelected(category),
+                label: 'Tümü',
+                selected: selected == null,
+                onTap: () => onSelected(null),
               ),
-          ],
+              for (final category in CampaignCategory.values)
+                _FilterRow(
+                  label: category.label,
+                  selected: selected == category,
+                  onTap: () => onSelected(category),
+                ),
+            ],
+          ),
         ),
       ),
     );

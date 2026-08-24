@@ -134,6 +134,24 @@ void main() {
     expect(find.text('Kaydedildi'), findsOneWidget);
   });
 
+  testWidgets('filtre sheet 9 kategoriyle taşmadan açılır', (tester) async {
+    await pumpApp(tester);
+
+    await tester.tap(find.bySemanticsLabel('Filtrele'));
+    await tester.pumpAndSettle();
+
+    // Asıl doğrulanan şey: 9 kategori (Tümü + 8) artık taşma (RenderFlex
+    // overflow) vermeden, gerektiğinde kendi içinde kaydıran bir sheet'te
+    // render ediliyor.
+    expect(tester.takeException(), isNull);
+    expect(find.text('Kategori'), findsOneWidget);
+    expect(find.text('Akaryakıt'), findsOneWidget);
+
+    await tester.drag(find.text('Kategori'), const Offset(0, -400));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('kupon oluşturma akışı kod üretir', (tester) async {
     await pumpApp(tester);
 

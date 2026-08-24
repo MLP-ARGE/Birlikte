@@ -48,8 +48,17 @@ class BirlikteChip extends StatelessWidget {
                 : AppColors.surfaceSunken,
             borderRadius: BorderRadius.circular(AppRadius.full),
           ),
+          // `labelMedium`'ın satır yüksekliği (18/14) fontun kendi
+          // ascent/descent oranından fazla boşluk ekliyor; bu boşluk üstte
+          // ve altta eşit dağılmadığı için eşit dolgulu bu pilde metin hafif
+          // kaymış görünüyordu. `textHeightBehavior` bu fazlalığı kırpıp
+          // metni gerçek glif sınırlarına oturtuyor.
           child: Text(
             label,
+            textHeightBehavior: const TextHeightBehavior(
+              applyHeightToFirstAscent: false,
+              applyHeightToLastDescent: false,
+            ),
             style: AppTypography.labelMedium.copyWith(
               color: selected
                   ? AppColors.textOnBrand
