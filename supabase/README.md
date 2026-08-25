@@ -22,6 +22,26 @@ güncellemek eşzamanlı işlemlerde sessizce yanlış sonuç verir.
 kontenjan ve kişi başı limiti tek işlemde uygular. `coupons` tablosunda
 INSERT politikası yoktur — istemci doğrudan yazamaz.
 
+## Şemayı doğrulama (kimlik bilgisi gerekmez)
+
+Migration'ları gerçek projeye göndermeden önce yerel bir Postgres'te kurup
+davranış testlerini koşabilirsin. Supabase CLI veya Docker gerekmez:
+
+```bash
+brew install postgresql@17
+supabase/tests/run.sh
+```
+
+32 kontrol koşuyor: telefon/TCKN normalizasyonu, giriş akışı, RLS izolasyonu
+(iki farklı kurumdan iki kullanıcıyla), bordro kolon kilidi, kupon limitleri
+ve kontenjanı, aile limiti, rıza kayıtlarının değiştirilemezliği, puan
+bakiyesi. Aynı testler her PR'da GitHub Actions üzerinde de koşuyor
+(`.github/workflows/supabase.yml`).
+
+`supabase/tests/stub_supabase.sql` yalnızca yerel doğrulama içindir —
+Supabase'in sağladığı `auth` şeması, roller ve `extensions` şemasını taklit
+eder, üretime gitmez.
+
 ## Kurulum
 
 ```bash
@@ -67,6 +87,25 @@ Karar verilene kadar giriş akışı uçtan uca çalışmaz.
 
 İşten ayrılanlar **silinmez**, `status = 'left'` yapılır: giriş engellenir
 ama kupon/puan geçmişi ve KVKK rıza kayıtları korunur.
+
+## GitHub ile ilişkisi
+
+Supabase projesi GitHub'dan **oluşturulamaz** — ayrı servis, ayrı kimlik
+bilgisi (`sbp_...` access token). GitHub'ın buradaki rolü CI/CD:
+
+* Her PR'da şema doğrulanır (kimlik bilgisi gerekmeden).
+* `main`'e merge'de migration'lar ve Edge Function'lar yayına alınır.
+
+Bunun için depoya üç secret eklenmeli (Settings → Secrets → Actions):
+
+| Secret | Nereden |
+|---|---|
+| `SUPABASE_ACCESS_TOKEN` | supabase.com/dashboard/account/tokens |
+| `SUPABASE_PROJECT_REF` | Proje ayarları → Reference ID |
+| `SUPABASE_DB_PASSWORD` | Proje oluşturulurken belirlenen DB şifresi |
+
+`deploy` işi `production` ortamına bağlı; GitHub'da o ortama onay kuralı
+koyarsan üretim şemasına kazara yazma engellenir.
 
 ## Açık konular
 

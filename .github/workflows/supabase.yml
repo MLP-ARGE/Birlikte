@@ -1,0 +1,65 @@
+name: Supabase
+
+# Şema değişikliklerinin doğrulanması ve yayına alınması.
+#
+# GitHub'ın bu işteki rolü budur: Supabase projesini GitHub oluşturamaz
+# (ayrı servis, ayrı kimlik bilgisi), ama şemayı doğrulayıp yayına
+# alabilir.
+
+on:
+  push:
+    branches: [main]
+    paths: ['supabase/**', '.github/workflows/supabase.yml']
+  pull_request:
+    paths: ['supabase/**']
+
+jobs:
+  # Her PR'da: şemayı sıfırdan kur, davranış testlerini koştur.
+  # Gerçek projeye dokunmaz, kimlik bilgisi gerektirmez.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Postgres 17 kur
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt \
+            $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-17
+
+      - name: Şemayı doğrula
+        run: PG_BIN=/usr/lib/postgresql/17/bin supabase/tests/run.sh
+
+  # Yalnızca main'e merge'de: migration'ları gerçek projeye uygula.
+  deploy:
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    # Onay gerektiren bir ortam: üretim şemasına kazara yazmayı engeller.
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Migration'ları uygula
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD:  ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PROJECT_REF:           ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          supabase link --project-ref "$PROJECT_REF"
+          supabase db push
+
+      - name: Edge Function'ları yayına al
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_REF:           ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          supabase functions deploy auth-lookup auth-verify \
+            --project-ref "$PROJECT_REF"
