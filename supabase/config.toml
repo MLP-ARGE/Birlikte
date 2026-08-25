@@ -1,0 +1,36 @@
+# Supabase yerel geliştirme yapılandırması.
+# `supabase start` ile kullanılır; üretim ayarları Dashboard'dadır.
+project_id = "birlikte"
+
+[api]
+enabled = true
+port = 54321
+# DİKKAT: `private` şeması burada YOK ve olmamalı — bordro verisi
+# PostgREST üzerinden erişilebilir olmamalı.
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 200
+
+[db]
+port = 54322
+major_version = 17
+
+[auth]
+enabled = true
+site_url = "birlikte://auth-callback"
+additional_redirect_urls = ["birlikte://auth-callback"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+# Kayıt kapalı: kullanıcı yalnızca bordroda kaydı varsa, Edge Function
+# üzerinden oluşturulur.
+enable_signup = false
+
+[auth.sms]
+enable_signup = false
+enable_confirmations = true
+# SMS sağlayıcısı seçilince doldurulacak (bkz. README).
+# template = "Birlikte doğrulama kodun: {{ .Code }}"
+
+[storage]
+enabled = true
+file_size_limit = "5MiB"
