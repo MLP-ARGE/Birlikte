@@ -1,0 +1,120 @@
+name: iOS TestFlight
+
+# TestFlight'a yükleme bilinçli bir eylem: her push'ta değil, elle
+# tetiklenir ya da sürüm etiketi atılınca çalışır. Kazara beta dağıtmayı
+# önlüyor.
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: 'Testçilere not (isteğe bağlı)'
+        required: false
+        type: string
+  push:
+    tags: ['v*']
+
+concurrency:
+  # Aynı anda iki yükleme çalışmasın; build numaraları çakışır.
+  group: ios-testflight
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          # Sürüm sabit: runner'ın varsayılanı değişince build'in sessizce
+          # bozulmasını istemiyoruz.
+          flutter-version: '3.47.0'
+          channel: stable
+          cache: true
+
+      - name: Bağımlılıklar
+        run: flutter pub get
+
+      - name: Analiz ve testler
+        # Yayına gidecek bir yapıda bunlar geçmeden devam etmenin anlamı yok.
+        run: |
+          flutter analyze
+          flutter test
+
+      - name: CocoaPods
+        working-directory: ios
+        run: pod install
+
+      - name: App Store Connect API anahtarını yaz
+        env:
+          ASC_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+        run: |
+          # Hem xcodebuild hem altool bu konumu kendiliğinden arıyor.
+          mkdir -p ~/.appstoreconnect/private_keys
+          printf '%s' "$ASC_KEY" > ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+          chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+
+      - name: Flutter derlemesi
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          # Build numarası her koşumda artıyor: TestFlight aynı numarayı
+          # ikinci kez kabul etmiyor.
+          flutter build ios --release --no-codesign \
+            --build-number=${{ github.run_number }} \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+
+      - name: Arşivle
+        working-directory: ios
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          xcodebuild -workspace Runner.xcworkspace -scheme Runner \
+            -configuration Release \
+            -archivePath ../build/Runner.xcarchive \
+            -destination 'generic/platform=iOS' \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            archive
+
+      - name: IPA çıkar
+        working-directory: ios
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath ../build/Runner.xcarchive \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath ../build/ipa \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - name: TestFlight'a yükle
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          xcrun altool --upload-app --type ios \
+            -f build/ipa/*.ipa \
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: IPA'yı iş çıktısı olarak sakla
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipa-${{ github.run_number }}
+          path: build/ipa/*.ipa
+          # Yükleme başarısız olursa elle Transporter ile göndermek için.
+          if-no-files-found: warn
+          retention-days: 14

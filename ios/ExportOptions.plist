@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- TestFlight ve App Store dağıtımı. -->
+	<key>method</key>
+	<string>app-store-connect</string>
+
+	<key>teamID</key>
+	<string>MG2UZQRTLY</string>
+
+	<!-- Otomatik imzalama: sertifika ve profil, App Store Connect API
+	     anahtarıyla Xcode tarafından çekilir/oluşturulur. CI'da .p12 ve
+	     .mobileprovision taşımaktan çok daha az kırılgan — sertifika
+	     yenilendiğinde workflow'a dokunmak gerekmiyor. -->
+	<key>signingStyle</key>
+	<string>automatic</string>
+
+	<!-- Yükleme sonrası App Store Connect'te sembolleşmiş kilitlenme
+	     raporları için. -->
+	<key>uploadSymbols</key>
+	<true/>
+
+	<!-- Bitcode Xcode 14'ten beri kaldırıldı. -->
+	<key>compileBitcode</key>
+	<false/>
+
+	<!-- App Store zaten kendi thinning'ini yapıyor. -->
+	<key>stripSwiftSymbols</key>
+	<true/>
+</dict>
+</plist>
