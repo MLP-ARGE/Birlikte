@@ -11,6 +11,7 @@ import '../features/auth/presentation/welcome_page.dart';
 import '../features/campaigns/presentation/campaign_detail_page.dart';
 import '../features/campaigns/presentation/campaigns_list_page.dart';
 import '../features/home/presentation/home_page.dart';
+import '../features/profile/presentation/profile_page.dart';
 import '../shared/pages/coming_soon_page.dart';
 import '../shared/widgets/app_shell.dart';
 import '../shared/widgets/birlikte_bottom_nav.dart';
@@ -137,38 +138,30 @@ final routerProvider = Provider<GoRouter>((ref) {
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>
             AppShell(navigationShell: navigationShell),
+        // Branch sırası `BirlikteTab.values` ile BİREBİR aynı olmak zorunda:
+        // AppShell aktif sekmeyi `BirlikteTab.values[currentIndex]` ile
+        // buluyor ve `goBranch(tab.index)` ile geçiş yapıyor. Sırayı elle
+        // yazmak, araya yeni bir sekme eklendiğinde sessizce yanlış sekmeyi
+        // vurgulamaya yol açar — bu yüzden enum üzerinden üretiliyor.
         branches: [
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: Routes.home,
-                name: 'home',
-                builder: (context, state) => const HomePage(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: Routes.campaigns,
-                name: BirlikteTab.campaigns.name,
-                builder: (context, state) => const CampaignsListPage(),
-              ),
-            ],
-          ),
-          // Tasarımları Figma'da var; ekranları kurulana kadar iskele
-          // sayfaya düşüyor, navigasyon çalışır kalsın.
           for (final tab in BirlikteTab.values)
-            if (tab != BirlikteTab.home && tab != BirlikteTab.campaigns)
-              StatefulShellBranch(
-                routes: [
-                  GoRoute(
-                    path: tab.route,
-                    name: tab.name,
-                    builder: (context, state) => ComingSoonPage(tab: tab),
-                  ),
-                ],
-              ),
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: tab.route,
+                  name: tab.name,
+                  builder: (context, state) => switch (tab) {
+                    BirlikteTab.home => const HomePage(),
+                    BirlikteTab.campaigns => const CampaignsListPage(),
+                    BirlikteTab.profile => const ProfilePage(),
+                    // Tasarımları Figma'da var; ekranları kurulana kadar
+                    // iskele sayfa, navigasyon çalışır kalsın.
+                    BirlikteTab.wallet ||
+                    BirlikteTab.kandas => ComingSoonPage(tab: tab),
+                  },
+                ),
+              ],
+            ),
         ],
       ),
     ],

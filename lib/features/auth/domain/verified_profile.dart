@@ -12,6 +12,8 @@ class VerifiedProfile {
     required this.employeeNo,
     required this.matchedAt,
     this.photoUrl,
+    this.language = 'tr',
+    this.theme = 'system',
   });
 
   final String fullName;
@@ -34,6 +36,12 @@ class VerifiedProfile {
 
   /// Profil fotoğrafı; yoksa avatar baş harflere düşer.
   final String? photoUrl;
+
+  /// `public.app_language` — 'tr' | 'en'.
+  final String language;
+
+  /// `public.app_theme` — 'system' | 'light' | 'dark'.
+  final String theme;
 
   /// Karşılama başlığında kullanılan ad ("Hoş geldin, Ayşe").
   String get firstName => fullName.trim().split(RegExp(r'\s+')).first;

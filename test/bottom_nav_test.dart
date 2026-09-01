@@ -17,6 +17,46 @@ void main() {
     await initSupabaseForTests();
   });
 
+  testWidgets('her sekme kendi ekranını açar (branch sırası hizalı)', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390 * 3, 900 * 3);
+    tester.view.devicePixelRatio = 3.0;
+    addTearDown(tester.view.reset);
+
+    final container = ProviderContainer(overrides: testOverrides());
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const BirlikteApp(),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 1300));
+    container.read(routerProvider).go('/home');
+    await tester.pumpAndSettle();
+
+    // Sekme etiketine dokunulduğunda o sekmenin ekranı gelmeli. Branch
+    // sırası enum sırasından kayarsa burada yanlış ekran açılır.
+    const beklenen = <String, String>{
+      'Kampanyalar': 'Kampanyalar',
+      'Profil': 'Profil',
+      'Cüzdanım': 'Bu bölüm henüz hazır değil.',
+      'Kandaş': 'Bu bölüm henüz hazır değil.',
+    };
+
+    for (final entry in beklenen.entries) {
+      await tester.tap(find.text(entry.key));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(entry.value),
+        findsWidgets,
+        reason: '${entry.key} sekmesi yanlış ekran açtı',
+      );
+    }
+  });
+
   testWidgets('sekme değişimi animasyonsuz ve scroll korunuyor', (
     tester,
   ) async {

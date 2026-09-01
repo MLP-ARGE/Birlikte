@@ -18,7 +18,7 @@ class ProfileRepository {
     final rows = await _client
         .from('profiles')
         .select('full_name, employee_no, institution_id, department, '
-            'region, facility, avatar_path')
+            'region, facility, avatar_path, language, theme')
         .limit(1);
 
     if (rows.isEmpty) return null;
@@ -47,6 +47,8 @@ class ProfileRepository {
       // ekranı bunu ayrıca çekiyor.
       matchedAt: DateTime.now(),
       photoUrl: row['avatar_path'] as String?,
+      language: (row['language'] as String?) ?? 'tr',
+      theme: (row['theme'] as String?) ?? 'system',
     );
   }
 

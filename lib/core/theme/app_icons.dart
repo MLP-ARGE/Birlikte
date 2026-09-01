@@ -45,6 +45,16 @@ abstract final class AppIcons {
   static const IconData star = LucideIcons.star300;
   static const IconData userPlus = LucideIcons.userPlus300;
 
+  // Profil & ayarlar
+  static const IconData users = LucideIcons.users300;
+  static const IconData globe = LucideIcons.globe300;
+  static const IconData eye = LucideIcons.eye300;
+  static const IconData help = LucideIcons.circleHelp300;
+  static const IconData fileText = LucideIcons.fileText300;
+  static const IconData shieldAlert = LucideIcons.shieldAlert300;
+  static const IconData bookOpen = LucideIcons.bookOpen300;
+  static const IconData logOut = LucideIcons.logOut300;
+
   // Kurum & kimlik
   static const IconData building = LucideIcons.building2300;
   static const IconData idCard = LucideIcons.idCard300;

@@ -6,6 +6,7 @@ import 'package:birlikte/features/auth/data/auth_repository.dart';
 import 'package:birlikte/features/campaigns/data/campaign_repository.dart';
 import 'package:birlikte/features/home/application/home_providers.dart';
 import 'package:birlikte/features/home/domain/home_models.dart';
+import 'package:birlikte/features/profile/data/profile_stats.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Testlerdeki oturum durumu. Sahte auth deposu doğrulama başarılı olunca
@@ -298,4 +299,16 @@ testOverrides({
   ),
   campaignsProvider.overrideWithValue(testCampaigns),
   verifiedProfileProvider.overrideWithValue(testProfile),
+  // Profil sayaçları Supabase'e sorgu atıyor; testte sabit veriyle
+  // değiştiriliyor (aksi hâlde engellenen HTTP isteği bekleyen zamanlayıcı
+  // bırakıyor ve test teardown'da patlıyor).
+  profileStatsProvider.overrideWith((ref) async => testProfileStats),
 ];
+
+/// Figma'daki profil sayaçları.
+const testProfileStats = ProfileStats(
+  familyCount: 2,
+  familyCapacity: 3,
+  favoriteCount: 8,
+  interestCount: 6,
+);
