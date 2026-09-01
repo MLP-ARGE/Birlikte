@@ -6,6 +6,15 @@
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<!-- İhracat uyumluluğu beyanı. Uygulama yalnızca standart HTTPS/TLS
+	     kullanıyor (Supabase REST + Edge Functions); kendi şifreleme
+	     algoritmasını içermiyor, bu yüzden muaf kapsamda. Bu anahtar
+	     olmadan her TestFlight yüklemesi "Missing Compliance" durumunda
+	     bekliyor ve elle yanıtlanması gerekiyor.
+	     Not: hukuki bir beyandır; ileride uçtan uca şifreleme gibi bir
+	     özellik eklenirse yeniden değerlendirilmeli. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>CFBundleDisplayName</key>
 	<string>Birlikte</string>
 	<key>CFBundleExecutable</key>
