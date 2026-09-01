@@ -1,5 +1,8 @@
 # Uncomment this line to define a global platform for your project
-# platform :ios, '15.0'
+# Projedeki IPHONEOS_DEPLOYMENT_TARGET ile aynı. Belirtilmezse CocoaPods
+# her `pod install`da "Automatically assigning platform" uyarısı veriyor ve
+# varsayımda bulunuyor; açıkça yazmak sürüm sapmasını engelliyor.
+platform :ios, '15.0'
 
 # CocoaPods analytics sends network stats synchronously affecting flutter build latency.
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
