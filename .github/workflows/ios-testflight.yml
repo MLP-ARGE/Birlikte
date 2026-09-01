@@ -100,6 +100,25 @@ jobs:
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID"
 
+      - name: Dağıtım günlüklerini dök
+        if: failure()
+        run: |
+          # exportArchive'in adım özetine bastığı "Cloud signing permission
+          # error" yalnızca sarmalayıcı mesaj. Apple'ın asıl API yanıtı
+          # xcdistributionlogs paketinde duruyor ve reddin sebebini (rol
+          # yetersizliği mi, sertifika kotası mı, başka bir şey mi) orası
+          # açıkça yazıyor. Teşhis için şart.
+          shopt -s nullglob
+          for d in "$TMPDIR"*.xcdistributionlogs /var/folders/*/*/T/*.xcdistributionlogs; do
+            [ -d "$d" ] || continue
+            echo "===== $d"
+            find "$d" -type f | while read -r f; do
+              echo "----- $f"
+              tail -c 20000 "$f"
+              echo
+            done
+          done
+
       - name: TestFlight'a yükle
         env:
           ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
