@@ -57,6 +57,51 @@ jobs:
           printf '%s' "$ASC_KEY" > ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
           chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
 
+      - name: İmzalama varlıklarını kur
+        env:
+          CERT_P12: ${{ secrets.IOS_DIST_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          PROVISION_PROFILE: ${{ secrets.IOS_PROVISION_PROFILE }}
+        run: |
+          # Cloud signing dağıtım sertifikası üretemiyor: Apple 403 dönüyor
+          # ("You haven't been given access to cloud-managed distribution
+          # certificates"). İzin ekibin Account Holder'ından gelene kadar
+          # sertifikayı kendimiz taşıyoruz.
+          #
+          # Geçici keychain kullanılıyor; runner'la birlikte yok oluyor ve
+          # kalıcı login keychain'e hiç dokunulmuyor.
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+
+          printf '%s' "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/dist.p12"
+          security import "$RUNNER_TEMP/dist.p12" -k "$KEYCHAIN" \
+            -P "$CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          rm -f "$RUNNER_TEMP/dist.p12"
+
+          # Bu olmadan codesign özel anahtara erişirken parola sorup takılır.
+          security set-key-partition-list -S apple-tool:,apple: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+
+          # Arama listesine ekle; yoksa xcodebuild kimliği göremez. Mevcut
+          # keychain'ler korunuyor, yalnızca başa ekliyoruz.
+          security list-keychains -d user -s "$KEYCHAIN" \
+            $(security list-keychains -d user | sed 's/"//g')
+
+          PROFILE_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILE_DIR"
+          printf '%s' "$PROVISION_PROFILE" | base64 --decode > "$RUNNER_TEMP/p.mobileprovision"
+          UUID="$(security cms -D -i "$RUNNER_TEMP/p.mobileprovision" | plutil -extract UUID raw -)"
+          cp "$RUNNER_TEMP/p.mobileprovision" "$PROFILE_DIR/$UUID.mobileprovision"
+
+          # Kimliğin gerçekten yüklendiğini burada görelim; imzalama
+          # adımında patlarsa sebebini aramak zor oluyor.
+          security find-identity -v -p codesigning
+
       - name: Flutter derlemesi
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -87,18 +132,15 @@ jobs:
 
       - name: IPA çıkar
         working-directory: ios
-        env:
-          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
+          # Elle imzalama: sertifika ve profil keychain'de hazır, Xcode'un
+          # Apple'a gitmesine gerek yok. -allowProvisioningUpdates bilerek
+          # kaldırıldı; bırakılsaydı yine reddedilen cloud signing yolunu
+          # denerdi.
           xcodebuild -exportArchive \
             -archivePath ../build/Runner.xcarchive \
             -exportOptionsPlist ExportOptions.plist \
-            -exportPath ../build/ipa \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+            -exportPath ../build/ipa
 
       - name: Dağıtım günlüklerini dök
         if: failure()

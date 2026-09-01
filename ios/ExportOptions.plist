@@ -9,12 +9,28 @@
 	<key>teamID</key>
 	<string>MG2UZQRTLY</string>
 
-	<!-- Otomatik imzalama: sertifika ve profil, App Store Connect API
-	     anahtarıyla Xcode tarafından çekilir/oluşturulur. CI'da .p12 ve
-	     .mobileprovision taşımaktan çok daha az kırılgan — sertifika
-	     yenilendiğinde workflow'a dokunmak gerekmiyor. -->
+	<!-- Elle imzalama. Otomatik imzalama denendi ve Apple dağıtım
+	     sertifikası talebini 403 ile reddetti:
+	       "You haven't been given access to cloud-managed distribution
+	        certificates. Please contact your team's Account Holder or an
+	        Admin to give you access."
+	     Bu izni yalnızca ekibin Account Holder'ı verebiliyor. İzin gelene
+	     kadar sertifikayı CI'a kendimiz taşıyoruz; böylece derleme kimsenin
+	     hesap ayarına bağlı kalmıyor.
+
+	     Karşılığı: sertifika süresi dolunca (26 Eyl 2026) IOS_DIST_CERT_P12
+	     secret'ının yenilenmesi gerekiyor. -->
 	<key>signingStyle</key>
-	<string>automatic</string>
+	<string>manual</string>
+
+	<key>signingCertificate</key>
+	<string>Apple Distribution</string>
+
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>com.mlp.birlikte</key>
+		<string>iOS Team Store Provisioning Profile: com.mlp.birlikte</string>
+	</dict>
 
 	<!-- Yükleme sonrası App Store Connect'te sembolleşmiş kilitlenme
 	     raporları için. -->
