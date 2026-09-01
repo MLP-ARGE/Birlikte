@@ -5,10 +5,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'helpers/fakes.dart';
 import 'helpers/test_fonts.dart';
+import 'helpers/test_supabase.dart';
 
 void main() {
-  setUpAll(loadAppFonts);
+  setUpAll(() async {
+    await loadAppFonts();
+    await initSupabaseForTests();
+  });
 
   testWidgets('onboarding → login → sms → welcome → kurum → ilgi → home', (
     tester,
@@ -25,7 +30,7 @@ void main() {
       }
     }
 
-    await tester.pumpWidget(const ProviderScope(child: BirlikteApp()));
+    await tester.pumpWidget(ProviderScope(overrides: testOverrides(loggedIn: null), child: const BirlikteApp()));
     // Splash 1200 ms sonra yönlendiriyor.
     await tester.pump(const Duration(milliseconds: 1300));
     await advance();
@@ -52,7 +57,10 @@ void main() {
     );
 
     // 6 hane girilince otomatik doğrulanır.
-    await tester.enterText(find.byType(TextField).first, '382914');
+    await tester.enterText(
+      find.byType(TextField).first,
+      FakeAuthRepository.validCode,
+    );
     await advance();
     expect(find.textContaining('Hoş geldin'), findsOneWidget);
 

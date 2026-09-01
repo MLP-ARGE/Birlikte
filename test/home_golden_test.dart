@@ -7,10 +7,15 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'helpers/fakes.dart';
 import 'helpers/test_fonts.dart';
+import 'helpers/test_supabase.dart';
 
 void main() {
-  setUpAll(loadAppFonts);
+  setUpAll(() async {
+    await loadAppFonts();
+    await initSupabaseForTests();
+  });
 
   testWidgets('ana sayfa render', (tester) async {
     // Tasarım 1556 yüksek; kaydırmadan tamamını görmek için yüzeyi uzatıyoruz.
@@ -18,7 +23,7 @@ void main() {
     tester.view.devicePixelRatio = 3.0;
     addTearDown(tester.view.reset);
 
-    final container = ProviderContainer();
+    final container = ProviderContainer(overrides: testOverrides());
     addTearDown(container.dispose);
     final router = container.read(routerProvider)..go(Routes.home);
 

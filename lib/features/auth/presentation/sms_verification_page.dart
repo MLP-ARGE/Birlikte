@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/routes.dart';
@@ -11,20 +12,32 @@ import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/birlikte_app_bar.dart';
 import '../../../shared/widgets/birlikte_button.dart';
 import '../../../shared/widgets/birlikte_otp_field.dart';
+import '../data/auth_repository.dart';
 
-/// SMS doğrulama (Figma: `sms-verification` 3:127 boş, 199:783 dolu).
-class SmsVerificationPage extends StatefulWidget {
-  const SmsVerificationPage({super.key, this.phone});
+/// Login ekranından SMS ekranına taşınan bilgi.
+class SmsVerificationArgs {
+  const SmsVerificationArgs({required this.identifier, this.maskedPhone});
 
-  /// Login ekranından gelen, biçimlendirilmiş numara (`+90 5XX XXX XX XX`).
-  /// TCKN ile girişte bilinmediği için null olabilir.
-  final String? phone;
+  /// Kullanıcının girdiği telefon ya da TCKN — doğrulamada aynısı gerekiyor.
+  final String identifier;
 
-  @override
-  State<SmsVerificationPage> createState() => _SmsVerificationPageState();
+  /// Sunucudan gelen maskeli numara, örn. "+90 532 *** ** 48".
+  /// Bordroda eşleşme yoksa null (sunucu bilerek ayrım yapmıyor).
+  final String? maskedPhone;
 }
 
-class _SmsVerificationPageState extends State<SmsVerificationPage> {
+/// SMS doğrulama (Figma: `sms-verification` 3:127 boş, 199:783 dolu).
+class SmsVerificationPage extends ConsumerStatefulWidget {
+  const SmsVerificationPage({super.key, required this.args});
+
+  final SmsVerificationArgs args;
+
+  @override
+  ConsumerState<SmsVerificationPage> createState() =>
+      _SmsVerificationPageState();
+}
+
+class _SmsVerificationPageState extends ConsumerState<SmsVerificationPage> {
   /// Figma'daki sayaç `00:45` ile başlıyor.
   static const _resendCooldown = Duration(seconds: 45);
   static const _codeLength = 6;
@@ -38,6 +51,8 @@ class _SmsVerificationPageState extends State<SmsVerificationPage> {
   Timer? _timer;
   Duration _remaining = _resendCooldown;
   String _code = '';
+  bool _verifying = false;
+  String? _error;
 
   bool get _canResend => _remaining == Duration.zero;
   bool get _complete => _code.length == _codeLength;
@@ -46,6 +61,22 @@ class _SmsVerificationPageState extends State<SmsVerificationPage> {
   void initState() {
     super.initState();
     _startCountdown();
+  }
+
+  /// Kodu yeniden gönderir ve sayacı sıfırlar.
+  Future<void> _resend() async {
+    setState(() => _error = null);
+    try {
+      await ref
+          .read(authRepositoryProvider)
+          .requestOtp(widget.args.identifier);
+      _startCountdown();
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.failure == AuthFailure.rateLimited
+          ? 'Çok sık denendi. Biraz bekleyip tekrar dene.'
+          : 'Kod gönderilemedi.');
+    }
   }
 
   void _startCountdown() {
@@ -67,28 +98,38 @@ class _SmsVerificationPageState extends State<SmsVerificationPage> {
     super.dispose();
   }
 
-  /// TODO(api): doğrulama ucu eşleşme bulamazsa `Routes.verificationError`'a
-  /// denenen numarayla gidilecek. Şu an backend olmadığı için hata yolu
-  /// yalnızca rota üzerinden erişilebilir; ekran hazır.
-  void _verify() => context.push(Routes.welcome);
+  /// Kodu doğrular; başarılıysa oturum açılır ve profil bordroya bağlanır.
+  Future<void> _verify() async {
+    if (_verifying) return;
+    setState(() {
+      _verifying = true;
+      _error = null;
+    });
 
-  /// `+90 532 123 45 48` → `+90 532 *** ** 48`, Figma'daki maske:
-  /// ülke kodu ve ilk grup açık, ortadaki iki grup yıldızlı, son grup açık.
+    try {
+      await ref.read(authRepositoryProvider).verifyOtp(
+        identifier: widget.args.identifier,
+        code: _code,
+      );
+      if (!mounted) return;
+      unawaited(context.push(Routes.welcome));
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = e.failure == AuthFailure.invalidCode
+          ? 'Kod hatalı veya süresi dolmuş.'
+          : 'Bağlantı kurulamadı. Lütfen tekrar dene.');
+    } finally {
+      if (mounted) setState(() => _verifying = false);
+    }
+  }
+
+  /// Açıklama metni: maskeleme sunucuda yapılıyor (istemci ham numarayı
+  /// hiç görmüyor), burada yalnızca cümleye yerleştiriliyor.
   String get _description {
-    final phone = widget.phone;
-    if (phone == null) {
+    final masked = widget.args.maskedPhone;
+    if (masked == null) {
       return 'Kayıtlı numarana gönderdiğimiz $_codeLength haneli kodu gir.';
     }
-    final parts = phone.split(' ');
-    final masked = parts.length == 5
-        ? [
-            parts[0],
-            parts[1],
-            '*' * parts[2].length,
-            '*' * parts[3].length,
-            parts[4],
-          ].join(' ')
-        : phone;
     return '$masked numarasına gönderdiğimiz $_codeLength haneli kodu gir.';
   }
 
@@ -138,8 +179,17 @@ class _SmsVerificationPageState extends State<SmsVerificationPage> {
                     const SizedBox(height: _afterOtp),
                     _ResendRow(
                       remaining: _remaining,
-                      onResend: _canResend ? _startCountdown : null,
+                      onResend: _canResend ? _resend : null,
                     ),
+                    if (_error case final error?) ...[
+                      const SizedBox(height: AppSpacing.s4),
+                      Text(
+                        error,
+                        style: AppTypography.caption.copyWith(
+                          color: AppColors.textError,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -155,7 +205,8 @@ class _SmsVerificationPageState extends State<SmsVerificationPage> {
               ),
               child: BirlikteButton(
                 label: 'Doğrula',
-                onPressed: _complete ? _verify : null,
+                isLoading: _verifying,
+                onPressed: _complete && !_verifying ? _verify : null,
               ),
             ),
           ],

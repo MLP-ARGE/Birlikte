@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/routes.dart';
@@ -10,21 +13,25 @@ import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/birlikte_button.dart';
 import '../../../shared/widgets/birlikte_segmented_control.dart';
 import '../../../shared/widgets/birlikte_text_field.dart';
+import '../data/auth_repository.dart';
+import 'sms_verification_page.dart';
 
 /// Giriş yöntemi — Figma'daki segmented control iki seçenek sunuyor.
 enum LoginMethod { phone, tckn }
 
 /// Giriş ekranı (Figma: `login-screen` 3:99 boş, 199:654 dolu).
-class LoginPage extends StatefulWidget {
+class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  ConsumerState<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageState extends ConsumerState<LoginPage> {
   final _controller = TextEditingController();
   LoginMethod _method = LoginMethod.phone;
+  bool _sending = false;
+  String? _error;
 
   /// Figma `content`: pl/pr 24, pt 32.
   static const _contentTop = 32.0;
@@ -55,14 +62,50 @@ class _LoginPageState extends State<LoginPage> {
     setState(() {
       _method = method;
       _controller.clear();
+      _error = null;
     });
   }
 
-  void _submit() => context.push(
-    Routes.smsVerification,
-    // TCKN ile girişte numara bilinmiyor; SMS ekranı null'ı karşılıyor.
-    extra: _method == LoginMethod.phone ? _controller.text : null,
-  );
+  /// Bordro doğrulaması ve kod gönderimi sunucuda (auth-lookup) yapılır.
+  ///
+  /// Eşleşme bulunmasa bile sunucu aynı yanıtı döner — numara denenerek
+  /// çalışan listesi çıkarılamasın diye. Bu yüzden burada "kullanıcı yok"
+  /// diye bir hata yolu yok; SMS ekranı her hâlükârda açılır.
+  Future<void> _submit() async {
+    if (_sending) return;
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+
+    final identifier = _controller.text;
+    try {
+      final challenge =
+          await ref.read(authRepositoryProvider).requestOtp(identifier);
+
+      if (!mounted) return;
+      // Rotanın kapanma değeri beklenmiyor; akış SMS ekranında devam ediyor.
+      unawaited(
+        context.push(
+          Routes.smsVerification,
+          extra: SmsVerificationArgs(
+            identifier: identifier,
+            maskedPhone: challenge.maskedPhone,
+          ),
+        ),
+      );
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = switch (e.failure) {
+        AuthFailure.rateLimited =>
+          'Çok fazla deneme yapıldı. Lütfen biraz sonra tekrar dene.',
+        AuthFailure.invalidIdentifier => 'Girdiğin bilgi geçersiz.',
+        _ => 'Bağlantı kurulamadı. Lütfen tekrar dene.',
+      });
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -138,7 +181,7 @@ class _LoginPageState extends State<LoginPage> {
                         else
                           LengthLimitingTextInputFormatter(11),
                       ],
-                      onChanged: (_) => setState(() {}),
+                      onChanged: (_) => setState(() => _error = null),
                       onSubmitted: (_) {
                         if (_valid) _submit();
                       },
@@ -166,11 +209,21 @@ class _LoginPageState extends State<LoginPage> {
                       color: AppColors.textSecondary,
                     ),
                   ),
+                  if (_error case final error?) ...[
+                    const SizedBox(height: AppSpacing.s3),
+                    Text(
+                      error,
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.textError,
+                      ),
+                    ),
+                  ],
                   // Figma: legal ile buton arası 16.
                   const SizedBox(height: AppSpacing.s5),
                   BirlikteButton(
                     label: 'Devam',
-                    onPressed: _valid ? _submit : null,
+                    isLoading: _sending,
+                    onPressed: _valid && !_sending ? _submit : null,
                   ),
                 ],
               ),

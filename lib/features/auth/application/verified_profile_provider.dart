@@ -1,21 +1,27 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_institutions.dart';
+import '../data/profile_repository.dart';
 import '../domain/verified_profile.dart';
 
 /// Doğrulanmış kullanıcı profili.
 ///
-/// TODO(api): SMS doğrulaması sonrası kurum eşleştirme ucundan gelecek. Şimdilik
-/// Figma'daki örnek kayıt — ekranlar gerçek veriyle aynı şekilde çalışıyor,
-/// yalnızca bu provider'ın gövdesi değişecek.
-final verifiedProfileProvider = Provider<VerifiedProfile>(
-  (ref) => VerifiedProfile(
-    fullName: 'Ayşe Yılmaz',
-    institution: Institution.medicalPark,
-    region: 'İstanbul Bölge',
-    department: 'Bilgi Teknolojileri',
-    facility: 'Göztepe Hastanesi',
-    employeeNo: 'MP-984302',
-    matchedAt: DateTime(2026, 7, 8),
-  ),
+/// Supabase'den gelir; oturum yoksa ya da henüz yüklenmediyse aşağıdaki
+/// yer tutucu döner. Ekranlar senkron bir profil beklediği için bu
+/// provider `AsyncValue` yerine düz değer veriyor — asıl kaynak
+/// [profileProvider], burası onun senkron görünümü.
+final verifiedProfileProvider = Provider<VerifiedProfile>((ref) {
+  return ref.watch(profileProvider).value ?? _placeholder;
+});
+
+/// Profil yüklenene kadar gösterilen boş kayıt. Gerçek veri gelince
+/// ekranlar kendiliğinden yenilenir.
+final _placeholder = VerifiedProfile(
+  fullName: '',
+  institution: Institution.medicalPark,
+  region: '',
+  department: '',
+  facility: '',
+  employeeNo: '',
+  matchedAt: DateTime(2026),
 );

@@ -88,7 +88,7 @@ class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
   @override
   Widget build(BuildContext context) {
     final all = ref.watch(campaignsProvider);
-    final favorites = ref.watch(favoriteCampaignIdsProvider);
+    final favorites = ref.watch(favoriteSlugsProvider);
     final filtered = _filterAndSort(all);
 
     return Scaffold(

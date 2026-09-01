@@ -18,6 +18,7 @@ import '../features/onboarding/presentation/onboarding_page.dart';
 import '../features/splash/presentation/splash_page.dart';
 import '../core/theme/app_dimens.dart';
 import '../core/theme/app_typography.dart';
+import '../core/supabase/supabase_client_provider.dart';
 import 'routes.dart';
 
 /// Uygulamanın rota tablosu.
@@ -28,9 +29,48 @@ import 'routes.dart';
 ///
 /// Doğrulama başarısız olursa `verification-error` devreye girer.
 final routerProvider = Provider<GoRouter>((ref) {
+  // Oturum değiştikçe yönlendirme yeniden değerlendirilsin.
+  final auth = ref.watch(supabaseProvider).auth;
+  final refresh = ValueNotifier<int>(0);
+  final sub = auth.onAuthStateChange.listen((_) => refresh.value++);
+  ref.onDispose(() {
+    sub.cancel();
+    refresh.dispose();
+  });
+
   return GoRouter(
     initialLocation: Routes.splash,
     debugLogDiagnostics: true,
+    refreshListenable: refresh,
+
+    // Oturumsuz kullanıcı korumalı ekranlara giremez; oturumlu kullanıcı
+    // giriş ekranlarında takılı kalmaz.
+    redirect: (context, state) {
+      final loggedIn = ref.read(isLoggedInProvider);
+      final location = state.matchedLocation;
+
+      const publicRoutes = {
+        Routes.splash,
+        Routes.onboarding,
+        Routes.login,
+        Routes.smsVerification,
+        Routes.verificationError,
+      };
+      final isPublic = publicRoutes.contains(location);
+
+      if (!loggedIn && !isPublic) return Routes.login;
+
+      // Giriş yapmış kullanıcı login/sms ekranına dönerse ana sayfaya al.
+      // Splash ve onboarding hariç: onlar kendi yönlendirmelerini yapıyor,
+      // welcome/institution-match/interest-selection ise giriş sonrası
+      // akışın parçası.
+      if (loggedIn &&
+          (location == Routes.login || location == Routes.smsVerification)) {
+        return Routes.home;
+      }
+
+      return null;
+    },
     routes: [
       GoRoute(
         path: Routes.splash,
@@ -50,10 +90,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.smsVerification,
         name: 'sms-verification',
-        // Login ekranı biçimlendirilmiş numarayı `extra` ile geçiriyor;
-        // TCKN ile girişte null.
-        builder: (context, state) =>
-            SmsVerificationPage(phone: state.extra as String?),
+        // Login ekranı hem girilen değeri hem maskeli numarayı taşıyor.
+        builder: (context, state) => SmsVerificationPage(
+          args: state.extra as SmsVerificationArgs,
+        ),
       ),
       GoRoute(
         path: Routes.verificationError,

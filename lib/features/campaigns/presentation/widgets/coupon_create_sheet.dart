@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_dimens.dart';
@@ -8,13 +12,15 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/birlikte_button.dart';
 import '../../../../shared/widgets/birlikte_info_card.dart';
 import '../../../home/domain/home_models.dart';
+import '../../data/campaign_repository.dart';
 
 /// Kupon oluşturma onayı (Figma: `coupon-create-confirm_Main` 3:800).
 ///
-/// TODO(api,wallet): kupon oluşturma ucu ve "Kuponlarım" listesi henüz yok
-/// (Cüzdanım sekmesi hâlâ iskele). Bu yüzden oluşturma yalnızca bir kod
-/// üretip ekranda gösteriyor — bir listeye kalıcı eklenmiyor. Cüzdanım
-/// kurulunca bu akış oraya bağlanmalı.
+/// Kupon `public.create_coupon()` RPC'si ile sunucuda üretilir: kod,
+/// kontenjan ve kişi başı limit orada uygulanır.
+///
+/// TODO(wallet): üretilen kupon "Kuponlarım" listesinde de görünmeli;
+/// Cüzdanım sekmesi kurulunca oraya bağlanacak.
 Future<void> showCouponCreateSheet(BuildContext context, Campaign campaign) {
   return showModalBottomSheet<void>(
     context: context,
@@ -27,10 +33,20 @@ Future<void> showCouponCreateSheet(BuildContext context, Campaign campaign) {
   );
 }
 
-class _CouponCreateSheet extends StatelessWidget {
+class _CouponCreateSheet extends ConsumerStatefulWidget {
   const _CouponCreateSheet({required this.campaign});
 
   final Campaign campaign;
+
+  @override
+  ConsumerState<_CouponCreateSheet> createState() => _CouponCreateSheetState();
+}
+
+class _CouponCreateSheetState extends ConsumerState<_CouponCreateSheet> {
+  bool _creating = false;
+  String? _error;
+
+  Campaign get campaign => widget.campaign;
 
   static const _grabberTop = AppSpacing.s3;
 
@@ -104,9 +120,19 @@ class _CouponCreateSheet extends StatelessWidget {
                   'süresi dolarsa yeniden oluşturulamaz.',
             ),
             const SizedBox(height: AppSpacing.s6),
+            if (_error case final error?) ...[
+              Text(
+                error,
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textError,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.s3),
+            ],
             BirlikteButton(
               label: 'Kuponu oluştur',
-              onPressed: () => _confirm(context),
+              isLoading: _creating,
+              onPressed: _creating ? null : _confirm,
             ),
             const SizedBox(height: AppSpacing.s3),
             BirlikteButton(
@@ -120,21 +146,43 @@ class _CouponCreateSheet extends StatelessWidget {
     );
   }
 
-  void _confirm(BuildContext context) {
-    Navigator.pop(context);
-    final code = _generateCode(campaign.id);
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) => _CouponSuccessDialog(code: code),
-    );
-  }
+  Future<void> _confirm() async {
+    final remoteId = campaign.remoteId;
+    if (remoteId == null) {
+      setState(() => _error = 'Bu kampanya için kupon oluşturulamıyor.');
+      return;
+    }
 
-  /// Gerçek uçta sunucu üretir; burada görsel doğrulama için deterministik
-  /// bir kod türetiliyor (kampanya id'sinden), test/golden'larda kararlı
-  /// kalması için `Random` kullanılmadı.
-  String _generateCode(String campaignId) {
-    final hash = campaignId.hashCode.abs().toString().padLeft(6, '0');
-    return 'BRLKT-${hash.substring(0, 6)}';
+    setState(() {
+      _creating = true;
+      _error = null;
+    });
+
+    try {
+      final code = await ref
+          .read(campaignRepositoryProvider)
+          .createCoupon(remoteId);
+
+      if (!mounted) return;
+      Navigator.pop(context);
+      unawaited(
+        showDialog<void>(
+          context: context,
+          builder: (_) => _CouponSuccessDialog(code: code),
+        ),
+      );
+    } on PostgrestException catch (e) {
+      if (!mounted) return;
+      // Sunucu kuralları Türkçe mesajla dönüyor ("Bu kampanyadan zaten
+      // yararlandınız", "Kampanya kontenjanı doldu" gibi) — doğrudan
+      // gösteriyoruz.
+      setState(() => _error = e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _error = 'Kupon oluşturulamadı. Lütfen tekrar dene.');
+    } finally {
+      if (mounted) setState(() => _creating = false);
+    }
   }
 }
 

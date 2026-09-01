@@ -76,6 +76,7 @@ class CampaignBranch {
 class Campaign {
   const Campaign({
     required this.id,
+    this.remoteId,
     required this.brand,
     required this.title,
     required this.discountLabel,
@@ -96,9 +97,12 @@ class Campaign {
     this.branches = const [],
   });
 
-  /// Kampanya kimliği — favori durumu ve detay yönlendirmesi bu anahtarla
-  /// çalışır.
+  /// Uygulama içi kimlik: okunur `slug` (rota adresinde görünür).
   final String id;
+
+  /// Veritabanındaki uuid. Yazma işlemleri (favori, kupon) bunu kullanır;
+  /// sabit demo verisinde null olabilir.
+  final String? remoteId;
   final String brand;
   final String title;
 

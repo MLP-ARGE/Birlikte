@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/supabase/supabase_client_provider.dart';
 import '../../../core/theme/app_institutions.dart';
+import '../../campaigns/data/campaign_repository.dart';
 import '../domain/home_models.dart';
 
 /// TODO(api): aşağıdaki provider'ların hepsi Figma'daki örnek içeriği döndürüyor.
@@ -19,156 +21,18 @@ final pointsSummaryProvider = Provider<PointsSummary>(
 /// `campaign-detail`/`campaign-terms`/`campaign-branches` 3 sekmesi buradan
 /// çıkarıldı); diğerleri liste kartı için yeterli alanlarla kuruldu — detay
 /// ekranı eksik bölümleri gizler.
+/// Tüm kampanyalar — Supabase'den.
+///
+/// Görünürlük (yayında mı, kullanıcının kurumuna açık mı) RLS tarafından
+/// zorlanıyor; istemci ayrıca filtrelemiyor.
+final campaignsAsyncProvider = FutureProvider<List<Campaign>>((ref) async {
+  ref.watch(authStateProvider);
+  return ref.watch(campaignRepositoryProvider).fetchAll();
+});
+
+/// Ekranların senkron kullandığı görünüm; veri gelene kadar boş liste.
 final campaignsProvider = Provider<List<Campaign>>(
-  (ref) => const [
-    Campaign(
-      id: 'istinye-yuksek-lisans',
-      brand: 'İstinye Üniversitesi',
-      brandType: 'Eğitim Kurumu',
-      title: 'Yüksek Lisans Fırsatı %50 İndirimli',
-      discountLabel: '%50',
-      daysLeft: 45,
-      category: CampaignCategory.education,
-      description:
-          'MLP Care, Medical Park, Liv Hospital ve Liv Koleji çalışanlarına '
-          'İstinye Üniversitesi yüksek lisans programlarında %50 indirim. '
-          'Geçerli bölümler: Bilgisayar Mühendisliği, Yapay Zeka, İşletme '
-          'Yüksek Lisans.',
-      validity: '1 Eylül 2026 — 31 Ocak 2027',
-      tags: ['Eğitim', 'Tüm Çalışanlara Özel', 'Yüksek Lisans'],
-      steps: [
-        'MLPCARE Birlikte uygulamasından başvuru formunu doldur.',
-        'İstinye Üniversitesi kayıt ofisine başvurunu ilet.',
-        'Kayıt tamamlandıktan sonra %50 indirimli ücretle eğitime başla.',
-      ],
-      whoQualifies: [
-        'MLP Care bünyesinde kadrolu çalışan tüm personel',
-        'En az 3 ay çalışma süresini tamamlamış olanlar',
-        'Çalışanın 1. derece yakınları (eş, çocuk, anne, baba)',
-      ],
-      rules: [
-        'İndirim 2026–2027 güz ve bahar dönemi kayıtlarında geçerlidir.',
-        'Diğer indirim, burs ve kampanyalarla birleştirilemez.',
-        'Kupon oluşturulduktan sonra 30 gün içinde kullanılmalıdır.',
-        'Her çalışan kampanya süresince bir kez yararlanabilir.',
-        'Kayıt sırasında MLP Care personel kimliği ibraz edilmelidir.',
-        'Kontenjan sınırlıdır, başvurular başvuru sırasına göre '
-            'değerlendirilir.',
-      ],
-      cancellationNote:
-          'Kayıt iptalinde indirim hakkı yeniden kullanılamaz.',
-      branches: [
-        CampaignBranch(
-          name: 'Topkapı Kampüsü',
-          distanceLabel: '4,2 km',
-          address: 'Maltepe Mah. Edirne Çırpıcı Yolu Sok. No:9, '
-              'Zeytinburnu / İstanbul',
-          hours: 'Hafta içi 09:00 – 18:00',
-        ),
-        CampaignBranch(
-          name: 'Güney Kampüs — Sağlık Bilimleri',
-          distanceLabel: '5,1 km',
-          address: 'Cevizlibağ, Teyyareci Sami Sok. No:3, '
-              'Zeytinburnu / İstanbul',
-          hours: 'Hafta içi 09:00 – 17:30',
-        ),
-        CampaignBranch(
-          name: 'Topkapı Liv Hospital Uygulama Kampüsü',
-          distanceLabel: '8,6 km',
-          address: 'Kaptanpaşa Mah. Darülaceze Cad. No:25, Şişli / İstanbul',
-          hours: 'Hafta içi 09:00 – 18:00',
-        ),
-        CampaignBranch(
-          name: 'Vadistanbul Kampüsü',
-          distanceLabel: '11,8 km',
-          address: 'Ayazağa Mah. Azerbaycan Cad. No:3-1, Sarıyer / İstanbul',
-          hours: 'Hafta içi 08:30 – 17:00',
-        ),
-      ],
-    ),
-    Campaign(
-      id: 'starbucks-buyuk-boy',
-      brand: 'Starbucks',
-      brandType: 'Yeme & İçme',
-      title: "Starbucks'ta Büyük Boy İçeceklerde %25 İndirim",
-      discountLabel: '%25',
-      daysLeft: 30,
-      category: CampaignCategory.foodDrink,
-      pointsCost: 750,
-    ),
-    Campaign(
-      id: 'karcher-ev-bahce',
-      brand: 'Kärcher Türkiye',
-      brandType: 'Ev ve Bahçe Ürünleri',
-      title: "MLPCare'e Özel Kärcher Ev ve Bahçe Ürünlerinde %20 Ayrıcalık",
-      discountLabel: '%20',
-      daysLeft: 24,
-      category: CampaignCategory.shopping,
-    ),
-    Campaign(
-      id: 'arabam-garaj',
-      brand: 'arabam.com',
-      brandType: 'Garaj Oto Kuaför',
-      title: 'arabam Garaj Oto Kuaför Kategorisinde Net 250 TL Ayrıcalık',
-      discountLabel: '250 TL',
-      daysLeft: 18,
-      category: CampaignCategory.automotive,
-    ),
-    Campaign(
-      id: 'liv-koleji-egitim',
-      brand: 'Liv Koleji',
-      brandType: 'Eğitim Kurumu',
-      title: "Liv Koleji'nde Eğitim Fırsatı %50 İndirimli",
-      discountLabel: '%50',
-      daysLeft: 60,
-      category: CampaignCategory.education,
-    ),
-    Campaign(
-      id: 'mlpcare-psikolog',
-      brand: 'MLPCare',
-      brandType: 'Sağlık & Wellness',
-      title: "MLPCare'den Ücretsiz Psikolog Seansı",
-      discountLabel: 'Ücretsiz',
-      daysLeft: 90,
-      category: CampaignCategory.health,
-    ),
-    Campaign(
-      id: 'dod-ikinci-el',
-      brand: 'DOD',
-      brandType: 'İkinci El Araç Platformu',
-      title: "DOD'da İkinci El Araç Alım Satımında Komisyonsuz İşlem",
-      discountLabel: 'Komisyonsuz',
-      daysLeft: 12,
-      category: CampaignCategory.automotive,
-    ),
-    Campaign(
-      id: 'opet-akaryakit',
-      brand: 'OPET',
-      brandType: 'Akaryakıt İstasyonları',
-      title: 'OPET İstasyonlarında Akaryakıtta 150 TL İndirim',
-      discountLabel: '150 TL',
-      daysLeft: 21,
-      category: CampaignCategory.fuel,
-    ),
-    Campaign(
-      id: 'enuygun-seyahat',
-      brand: 'EnUygun',
-      brandType: 'Seyahat & Konaklama',
-      title: "EnUygun'da Otel ve Araç Kiralamada %10 İndirim",
-      discountLabel: '%10',
-      daysLeft: 40,
-      category: CampaignCategory.travel,
-    ),
-    Campaign(
-      id: 'petcity-mama',
-      brand: 'Petcity',
-      brandType: 'Evcil Hayvan',
-      title: "Petcity'de Mama ve Aksesuar Alışverişinde %30 İndirim",
-      discountLabel: '%30',
-      daysLeft: 15,
-      category: CampaignCategory.pets,
-    ),
-  ],
+  (ref) => ref.watch(campaignsAsyncProvider).value ?? const [],
 );
 
 /// Tek bir kampanyayı id ile bulur — detay ekranı bunu kullanır.
@@ -205,30 +69,60 @@ final promoOffersProvider = Provider<List<PromoOffer>>(
   ],
 );
 
-/// Favoriye eklenen kampanya id'leri — kart, detay ve liste arasında ortak.
+/// Favoriye eklenen kampanyaların `slug` değerleri.
 ///
-/// TODO(api): kullanıcı bazlı kalıcı depoya (backend veya secure storage)
-/// bağlanacak; şimdilik bellekte, uygulama yeniden başlayınca sıfırlanıyor.
+/// Kaynak Supabase; değişiklik yazıldıktan sonra liste yeniden çekiliyor,
+/// böylece liste ve detay ekranı aynı gerçeği gösteriyor.
 final favoriteCampaignIdsProvider =
-    NotifierProvider<FavoriteCampaignIds, Set<String>>(FavoriteCampaignIds.new);
+    AsyncNotifierProvider<FavoriteCampaignIds, Set<String>>(
+      FavoriteCampaignIds.new,
+    );
 
-class FavoriteCampaignIds extends Notifier<Set<String>> {
+class FavoriteCampaignIds extends AsyncNotifier<Set<String>> {
   @override
-  Set<String> build() => {
-    for (final c in ref.watch(campaignsProvider))
-      if (c.favorite) c.id,
-  };
+  Future<Set<String>> build() {
+    ref.watch(authStateProvider);
+    return ref.watch(campaignRepositoryProvider).fetchFavoriteIds();
+  }
 
-  void toggle(String campaignId) {
-    state = {...state}..toggle(campaignId);
+  Future<void> toggle(String slug) async {
+    // İlk yükleme bitmeden dokunulursa, aşağıdaki iyimser güncelleme
+    // sonradan gelen `build()` sonucu tarafından ezilirdi. `future`
+    // beklemek bu yarışı kapatıyor.
+    final current = await future;
+    final adding = !current.contains(slug);
+
+    // İyimser güncelleme: dokunuşa anında tepki versin.
+    //
+    // Parantezler şart: `..` kaskadının önceliği koşullu ifadeden düşük,
+    // parantezsiz yazımda `(adding ? A : B)..remove(slug)` olarak
+    // ayrıştırılıyor ve az önce eklenen öğe hemen siliniyordu.
+    state = AsyncData(
+      adding ? {...current, slug} : ({...current}..remove(slug)),
+    );
+
+    final campaign = ref
+        .read(campaignsProvider)
+        .where((c) => c.id == slug)
+        .firstOrNull;
+    final remoteId = campaign?.remoteId;
+    if (remoteId == null) return;
+
+    try {
+      await ref
+          .read(campaignRepositoryProvider)
+          .toggleFavorite(remoteId, add: adding);
+    } catch (_) {
+      // Yazma başarısızsa geri al — kullanıcı yanlış duruma bakmasın.
+      state = AsyncData(current);
+    }
   }
 }
 
-extension on Set<String> {
-  void toggle(String value) {
-    if (!remove(value)) add(value);
-  }
-}
+/// Senkron görünüm (kartlar bunu okuyor).
+final favoriteSlugsProvider = Provider<Set<String>>(
+  (ref) => ref.watch(favoriteCampaignIdsProvider).value ?? const {},
+);
 
 final bloodRequestsProvider = Provider<List<BloodRequest>>(
   (ref) => const [

@@ -41,7 +41,7 @@ class HomePage extends ConsumerWidget {
     final offers = ref.watch(promoOffersProvider);
     final campaigns = ref.watch(endingSoonCampaignsProvider);
     final requests = ref.watch(bloodRequestsProvider);
-    final favorites = ref.watch(favoriteCampaignIdsProvider);
+    final favorites = ref.watch(favoriteSlugsProvider);
     final members = ref.watch(familyMembersProvider);
     final capacity = ref.watch(familyCapacityProvider);
 

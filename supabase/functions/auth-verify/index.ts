@@ -7,10 +7,24 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
-const admin = createClient(
-  Deno.env.get('SUPABASE_URL')!,
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-);
+const url = Deno.env.get('SUPABASE_URL')!;
+const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+// İKİ AYRI İSTEMCİ — bilerek.
+//
+// supabase-js'te `auth.verifyOtp()` başarılı olunca istemcinin oturumunu
+// doğrulanan KULLANICIYA çevirir. Aynı istemciyle sonra `rpc()` çağırırsan
+// istek service_role ile değil, o kullanıcının JWT'siyle gider ve
+// `link_profile` "permission denied" verir (authenticated rolünün o
+// fonksiyonda yetkisi yok — kasıtlı).
+//
+// Bu yüzden auth işlemleri ayrı, veritabanı işlemleri ayrı istemcide.
+const authClient = createClient(url, serviceKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+const db = createClient(url, serviceKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
 
 Deno.serve(async (req) => {
   if (req.method !== 'POST') {
@@ -24,7 +38,7 @@ Deno.serve(async (req) => {
   }
 
   // Kodun gittiği numarayı yeniden bul (TCKN ile girildiyse gerekiyor).
-  const { data: lookup } = await admin.rpc('lookup_employee', {
+  const { data: lookup } = await db.rpc('lookup_employee', {
     p_identifier: identifier,
     p_ip: null,
   });
@@ -34,7 +48,7 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'invalid_code' }, { status: 401 });
   }
 
-  const { data: session, error } = await admin.auth.verifyOtp({
+  const { data: session, error } = await authClient.auth.verifyOtp({
     phone: match.phone,
     token: code,
     type: 'sms',
@@ -44,7 +58,7 @@ Deno.serve(async (req) => {
     return Response.json({ error: 'invalid_code' }, { status: 401 });
   }
 
-  const { data: profile, error: linkError } = await admin.rpc('link_profile', {
+  const { data: profile, error: linkError } = await db.rpc('link_profile', {
     p_user_id: session.user.id,
     p_employee_id: match.employee_id,
   });

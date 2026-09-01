@@ -36,7 +36,7 @@ class _CampaignDetailPageState extends ConsumerState<CampaignDetailPage> {
     final campaign = ref.watch(campaignByIdProvider(widget.campaignId));
     if (campaign == null) return const _CampaignNotFound();
 
-    final favorites = ref.watch(favoriteCampaignIdsProvider);
+    final favorites = ref.watch(favoriteSlugsProvider);
     final isFavorite = favorites.contains(campaign.id);
     final tabs = [
       _Tab.details,

@@ -107,6 +107,38 @@ Bunun için depoya üç secret eklenmeli (Settings → Secrets → Actions):
 `deploy` işi `production` ortamına bağlı; GitHub'da o ortama onay kuralı
 koyarsan üretim şemasına kazara yazma engellenir.
 
+## Dev projesi (kurulu ve çalışıyor)
+
+| | |
+|---|---|
+| Proje | `birlikte-dev` — `iahzmjzigmmbxcivhhtr` |
+| Bölge | eu-central-1 (Frankfurt) |
+| Dashboard | https://supabase.com/dashboard/project/iahzmjzigmmbxcivhhtr |
+
+Uygulanmış olanlar: 8 migration, demo verisi (`supabase/seed/demo.sql`),
+Edge Function'lar (`auth-lookup`, `auth-verify`), Vault'ta TCKN pepper'ı.
+
+### Demo kullanıcıları
+
+SMS sağlayıcısı henüz bağlanmadığı için telefon OTP'si Supabase'in **test
+kodu** özelliğiyle çalışıyor: aşağıdaki numaralara gerçek SMS gitmez,
+doğrulama kodu her zaman **`145823`**.
+
+| Ad | Kurum | Telefon | TCKN | Sicil |
+|---|---|---|---|---|
+| Ayşe Yılmaz | Medical Park | `+90 532 123 45 48` | `10000000078` | MP-9843102 |
+| Mehmet Demir | Liv Hospital | `+90 533 999 88 77` | `20000000046` | LH-5551234 |
+| Zeynep Kaya | İstinye Üniversitesi | `+90 544 777 66 55` | `30000000014` | IU-7742001 |
+
+Telefonla da TCKN ile de giriş yapılabilir; TCKN ile girişte kod yine
+bordroda kayıtlı numaraya gider.
+
+TCKN'ler algoritmik olarak geçerli ama **gerçek kişilere ait değil** —
+sağlama hanelerini sağlayacak şekilde üretildiler.
+
+Test kodları `sms_test_otp_valid_until = 2027-12-31`'e kadar geçerli.
+Gerçek SMS sağlayıcısı bağlanınca bu ayar kaldırılmalı.
+
 ## Açık konular
 
 Bunlar mimariyi etkiler, karar bekliyor — ayrıntı için proje sohbetine bakın:

@@ -2,10 +2,18 @@ import 'package:birlikte/app/app.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'helpers/fakes.dart';
+import 'helpers/test_supabase.dart';
+
 void main() {
+  setUpAll(initSupabaseForTests);
+
   group('açılış akışı', () {
     testWidgets('splash marka kilidini gösterir', (tester) async {
-      await tester.pumpWidget(const ProviderScope(child: BirlikteApp()));
+      await tester.pumpWidget(ProviderScope(
+        overrides: testOverrides(loggedIn: false),
+        child: const BirlikteApp(),
+      ));
       await tester.pump();
 
       expect(find.text('MLPCARE'), findsOneWidget);
@@ -17,7 +25,10 @@ void main() {
     });
 
     testWidgets('splash sonrası onboarding açılır', (tester) async {
-      await tester.pumpWidget(const ProviderScope(child: BirlikteApp()));
+      await tester.pumpWidget(ProviderScope(
+        overrides: testOverrides(loggedIn: false),
+        child: const BirlikteApp(),
+      ));
       await tester.pumpAndSettle(const Duration(seconds: 2));
 
       expect(find.text('Dört kurum,\ntek çatı'), findsOneWidget);
@@ -28,7 +39,10 @@ void main() {
 
   group('onboarding', () {
     Future<void> pumpToOnboarding(WidgetTester tester) async {
-      await tester.pumpWidget(const ProviderScope(child: BirlikteApp()));
+      await tester.pumpWidget(ProviderScope(
+        overrides: testOverrides(loggedIn: false),
+        child: const BirlikteApp(),
+      ));
       await tester.pumpAndSettle(const Duration(seconds: 2));
     }
 
