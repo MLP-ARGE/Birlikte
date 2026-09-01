@@ -14,14 +14,27 @@ final authStateProvider = StreamProvider<AuthState>(
   (ref) => ref.watch(supabaseProvider).auth.onAuthStateChange,
 );
 
-/// Oturum açık mı.
+/// Oturum açık mı — router korumasının kullandığı kontrol.
 ///
-/// Router'ın koruması bunu okuyor. Ayrı bir provider olmasının sebebi
-/// test edilebilirlik: testler gerçek bir Supabase oturumu kurmak yerine
-/// bunu değiştirebiliyor.
+/// Değer değil, **fonksiyon** döndürüyor. Sebebi ince ama kritik:
+/// `Provider<bool>` değeri önbelleğe alır ve yalnızca bağımlılığı
+/// (`authStateProvider` stream'i) yeni olay yayınlayınca tazelenir. Oysa
+/// `setSession()` döner dönmez `currentSession` doluyor ama stream olayı
+/// henüz yayılmamış oluyor. Koruma o anda önbellekteki eski `false`
+/// değerini görüp kullanıcıyı login'e geri atıyordu — kod girildikten
+/// sonra ekran başa dönüyordu.
+///
+/// Fonksiyonun kendisi önbelleklenir, ama her çağrıldığında oturumu
+/// istemciden taze okur. Testler bunu değiştirebiliyor.
+final sessionCheckProvider = Provider<bool Function()>((ref) {
+  final client = ref.watch(supabaseProvider);
+  return () => client.auth.currentSession != null;
+});
+
+/// Oturum açık mı (widget'ların izlemesi için reaktif hâl).
 final isLoggedInProvider = Provider<bool>((ref) {
   ref.watch(authStateProvider);
-  return ref.watch(supabaseProvider).auth.currentSession != null;
+  return ref.watch(sessionCheckProvider)();
 });
 
 /// Oturum açmış kullanıcının kimliği; yoksa null.

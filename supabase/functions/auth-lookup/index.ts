@@ -10,20 +10,25 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
+import { handlePreflight, jsonResponse } from '../_shared/cors.ts';
+
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 );
 
 Deno.serve(async (req) => {
+  const preflight = handlePreflight(req);
+  if (preflight) return preflight;
+
   if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 });
+    return jsonResponse({ error: 'method_not_allowed' }, 405);
   }
 
   const { identifier } = await req.json().catch(() => ({ identifier: null }));
 
   if (typeof identifier !== 'string' || identifier.length < 10) {
-    return Response.json({ error: 'invalid_identifier' }, { status: 400 });
+    return jsonResponse({ error: 'invalid_identifier' }, 400);
   }
 
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null;
@@ -37,9 +42,9 @@ Deno.serve(async (req) => {
     // Hız sınırı aşıldıysa istemciye gerçek nedeni söylüyoruz; diğer
     // hatalarda ayrıntı vermiyoruz.
     const rateLimited = error.message?.includes('Çok fazla deneme');
-    return Response.json(
+    return jsonResponse(
       { error: rateLimited ? 'rate_limited' : 'lookup_failed' },
-      { status: rateLimited ? 429 : 500 },
+      rateLimited ? 429 : 500,
     );
   }
 
@@ -61,12 +66,12 @@ Deno.serve(async (req) => {
 
     if (otpError) {
       console.error('otp_send_failed', otpError.message);
-      return Response.json({ error: 'otp_send_failed' }, { status: 502 });
+      return jsonResponse({ error: 'otp_send_failed' }, 502);
     }
   }
 
   // Eşleşme olsun olmasın aynı yanıt.
-  return Response.json({
+  return jsonResponse({
     sent: true,
     masked_phone: match?.masked_phone ?? null,
   });

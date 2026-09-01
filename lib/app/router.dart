@@ -46,7 +46,8 @@ final routerProvider = Provider<GoRouter>((ref) {
     // Oturumsuz kullanıcı korumalı ekranlara giremez; oturumlu kullanıcı
     // giriş ekranlarında takılı kalmaz.
     redirect: (context, state) {
-      final loggedIn = ref.read(isLoggedInProvider);
+      // Taze okuma: bkz. sessionCheckProvider açıklaması.
+      final loggedIn = ref.read(sessionCheckProvider)();
       final location = state.matchedLocation;
 
       const publicRoutes = {

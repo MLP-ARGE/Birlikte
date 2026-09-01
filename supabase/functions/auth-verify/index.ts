@@ -7,6 +7,8 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
+import { handlePreflight, jsonResponse } from '../_shared/cors.ts';
+
 const url = Deno.env.get('SUPABASE_URL')!;
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -27,14 +29,17 @@ const db = createClient(url, serviceKey, {
 });
 
 Deno.serve(async (req) => {
+  const preflight = handlePreflight(req);
+  if (preflight) return preflight;
+
   if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 });
+    return jsonResponse({ error: 'method_not_allowed' }, 405);
   }
 
   const { identifier, code } = await req.json().catch(() => ({}));
 
   if (typeof identifier !== 'string' || typeof code !== 'string') {
-    return Response.json({ error: 'invalid_request' }, { status: 400 });
+    return jsonResponse({ error: 'invalid_request' }, 400);
   }
 
   // Kodun gittiği numarayı yeniden bul (TCKN ile girildiyse gerekiyor).
@@ -45,7 +50,7 @@ Deno.serve(async (req) => {
   const match = lookup?.[0];
 
   if (!match?.found) {
-    return Response.json({ error: 'invalid_code' }, { status: 401 });
+    return jsonResponse({ error: 'invalid_code' }, 401);
   }
 
   const { data: session, error } = await authClient.auth.verifyOtp({
@@ -55,7 +60,7 @@ Deno.serve(async (req) => {
   });
 
   if (error || !session.user) {
-    return Response.json({ error: 'invalid_code' }, { status: 401 });
+    return jsonResponse({ error: 'invalid_code' }, 401);
   }
 
   const { data: profile, error: linkError } = await db.rpc('link_profile', {
@@ -65,10 +70,10 @@ Deno.serve(async (req) => {
 
   if (linkError) {
     console.error('link_profile_failed', linkError.message);
-    return Response.json({ error: 'profile_link_failed' }, { status: 500 });
+    return jsonResponse({ error: 'profile_link_failed' }, 500);
   }
 
-  return Response.json({
+  return jsonResponse({
     session: {
       access_token: session.session?.access_token,
       refresh_token: session.session?.refresh_token,

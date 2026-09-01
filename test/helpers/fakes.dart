@@ -271,11 +271,27 @@ final testProfile = VerifiedProfile(
 /// gelir ve test sırasında değişebilir (uçtan uca akış için). Sabit bir
 /// değer verilirse o değere kilitlenir (tek ekran render'ları için).
 // ignore: strict_top_level_inference, always_declare_return_types
-testOverrides({Set<String>? favorites, bool? loggedIn = true}) => [
-  if (loggedIn != null)
-    isLoggedInProvider.overrideWithValue(loggedIn)
-  else
+testOverrides({
+  Set<String>? favorites,
+  bool? loggedIn = true,
+  // Router korumasının okuyacağı taze kontrol; verilirse
+  // loggedIn yerine bu kullanılır.
+  bool Function()? sessionCheck,
+}) => [
+  // Router koruması sessionCheckProvider'ı, widget'lar isLoggedInProvider'ı
+  // okuyor; ikisi de aynı sahte duruma bağlanmalı.
+  if (sessionCheck != null) ...[
+    sessionCheckProvider.overrideWithValue(sessionCheck),
+    isLoggedInProvider.overrideWith((ref) => sessionCheck()),
+  ] else if (loggedIn != null) ...[
+    isLoggedInProvider.overrideWithValue(loggedIn),
+    sessionCheckProvider.overrideWithValue(() => loggedIn),
+  ] else ...[
     isLoggedInProvider.overrideWith((ref) => ref.watch(fakeSessionProvider)),
+    sessionCheckProvider.overrideWith(
+      (ref) => () => ref.read(fakeSessionProvider),
+    ),
+  ],
   authRepositoryProvider.overrideWith(FakeAuthRepository.new),
   campaignRepositoryProvider.overrideWithValue(
     FakeCampaignRepository(favorites: favorites),
