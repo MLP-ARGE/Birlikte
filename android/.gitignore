@@ -1,9 +1,12 @@
 gradle-wrapper.jar
 /.gradle
+# Alt modüllerde de oluşabiliyor (ör. android/app/.gradle).
+**/.gradle
 /captures/
 /gradlew
 /gradlew.bat
 /local.properties
+**/local.properties
 GeneratedPluginRegistrant.java
 .cxx/
 

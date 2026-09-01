@@ -52,3 +52,6 @@ app.*.map.json
 
 # Golden test karşılaştırma çıktıları (başarısız testte üretilir)
 test/failures/
+
+# Supabase CLI'nin yerel önbelleği (bağlı proje, sürüm bilgileri)
+supabase/.temp/
