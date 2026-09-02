@@ -34,6 +34,32 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Xcode 26 seç
+        run: |
+          # Apple artık iOS 26 SDK'sını zorunlu tutuyor; 16.4 ile derlenen
+          # yükleme 409 ile reddediliyor:
+          #   "This app was built with the iOS 18.5 SDK. All iOS and iPadOS
+          #    apps must be built with the iOS 26 SDK or later"
+          # Runner imajında Xcode 26.3 kurulu ama varsayılan 16.4, o yüzden
+          # elle seçiyoruz.
+          #
+          # 26.3'ü tercih ediyoruz; imaj onu kaldırırsa en yeni 26.x'e
+          # düşüyoruz. Hiç 26 yoksa burada duruyoruz: sessizce eski SDK ile
+          # derleyip yükleme adımında patlamak teşhisi zorlaştırıyor.
+          set -euo pipefail
+          XC=/Applications/Xcode_26.3.app
+          if [ ! -d "$XC" ]; then
+            XC="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1 || true)"
+          fi
+          if [ -z "${XC:-}" ] || [ ! -d "$XC" ]; then
+            echo "Xcode 26+ bulunamadi. Mevcut olanlar:" >&2
+            ls -d /Applications/Xcode*.app >&2 || true
+            exit 1
+          fi
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+          echo "iOS SDK: $(xcrun --sdk iphoneos --show-sdk-version)"
+
       - name: Bağımlılıklar
         run: flutter pub get
 
