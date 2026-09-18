@@ -23,3 +23,29 @@ create table if not exists auth.users (
 create or replace function auth.uid() returns uuid
   language sql stable
   as $fn$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $fn$;
+
+-- Storage. Gerçek projede Supabase'in storage eklentisi sağlıyor; burada
+-- yalnızca migration'ın çalışabilmesi için gereken iki tablo taklit
+-- ediliyor. Kolon kümesi gerçeğinin alt kümesidir — testler yalnızca
+-- bucket'ın kurulduğunu ve okuma politikasının var olduğunu doğruluyor.
+create schema if not exists storage;
+grant usage on schema storage to anon, authenticated, service_role;
+
+create table if not exists storage.buckets (
+  id                 text primary key,
+  name               text not null,
+  public             boolean not null default false,
+  file_size_limit    bigint,
+  allowed_mime_types text[],
+  created_at         timestamptz not null default now()
+);
+
+create table if not exists storage.objects (
+  id        uuid primary key default gen_random_uuid(),
+  bucket_id text references storage.buckets (id),
+  name      text,
+  owner     uuid,
+  created_at timestamptz not null default now()
+);
+
+alter table storage.objects enable row level security;

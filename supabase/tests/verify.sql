@@ -213,5 +213,23 @@ select pg_temp.check('RLS: diğer kullanıcının kuponunu görmez',
   (select count(*) from public.coupons), 0::bigint);
 reset role;
 
+-- Görsel deposu. Kampanya kapaklarının anonim kullanıcıya da açık olması
+-- gerekiyor (kampanya listesi giriş öncesi de görünebiliyor), o yüzden
+-- bucket'ın public kalması davranışsal bir gereklilik — kazara private'a
+-- çevrilirse burada yakalanır.
+select pg_temp.check('storage: public-assets bucket kuruldu',
+  (select count(*) from storage.buckets where id = 'public-assets'), 1::bigint);
+select pg_temp.check('storage: bucket herkese açık',
+  (select public from storage.buckets where id = 'public-assets'), true);
+select pg_temp.check('storage: okuma politikası tanımlı',
+  (select count(*) from pg_policies
+    where schemaname = 'storage' and tablename = 'objects'
+      and policyname = 'public_assets_read'), 1::bigint);
+-- Yazma politikası bilerek YOK: yükleme yalnızca service_role ile yapılır.
+select pg_temp.check('storage: kullanıcıya yazma politikası yok',
+  (select count(*) from pg_policies
+    where schemaname = 'storage' and tablename = 'objects'
+      and cmd <> 'SELECT'), 0::bigint);
+
 \echo ''
 \echo 'TUM KONTROLLER GECTI'

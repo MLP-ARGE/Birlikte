@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -190,18 +191,10 @@ class _Hero extends StatelessWidget {
       height: height,
       child: Stack(
         children: [
-          const Positioned.fill(
-            child: ColoredBox(
-              color: AppColors.surfaceBrand,
-              child: Center(
-                child: Icon(
-                  AppIcons.gift,
-                  size: 48,
-                  color: AppColors.iconBrand,
-                ),
-              ),
-            ),
-          ),
+          // Kapak görseli backend'den (campaigns.hero_image_path) geliyor.
+          // Değer tam URL tutuyor; CachedNetworkImage indirip diske
+          // önbelleğe alıyor, ikinci açılışta ağa gitmiyor.
+          Positioned.fill(child: _HeroImage(url: campaign.imageUrl)),
           SafeArea(
             bottom: false,
             child: Padding(
@@ -244,6 +237,36 @@ class _Hero extends StatelessWidget {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Paylaşım yakında eklenecek.')),
     );
+  }
+}
+
+/// Kampanya kapak görseli.
+///
+/// Görsel yoksa ya da indirilemezse kartlardakiyle aynı placeholder gösterilir
+/// — ekran hiçbir durumda boş kalmıyor.
+class _HeroImage extends StatelessWidget {
+  const _HeroImage({required this.url});
+
+  final String? url;
+
+  @override
+  Widget build(BuildContext context) {
+    const placeholder = ColoredBox(
+      color: AppColors.surfaceBrand,
+      child: Center(
+        child: Icon(AppIcons.gift, size: 48, color: AppColors.iconBrand),
+      ),
+    );
+
+    return switch (url) {
+      final url? when url.isNotEmpty => CachedNetworkImage(
+        imageUrl: url,
+        fit: BoxFit.cover,
+        placeholder: (_, _) => placeholder,
+        errorWidget: (_, _, _) => placeholder,
+      ),
+      _ => placeholder,
+    };
   }
 }
 
