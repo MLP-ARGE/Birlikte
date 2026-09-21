@@ -231,5 +231,45 @@ select pg_temp.check('storage: kullanıcıya yazma politikası yok',
     where schemaname = 'storage' and tablename = 'objects'
       and cmd <> 'SELECT'), 0::bigint);
 
+-- Eşlenmemiş şubeyle giriş. Kritik davranış: giriş ENGELLENMEMELİ, ama
+-- şube düzeltilecekler listesine düşmeli. Önceki sürüm burada hata veriyordu
+-- ve o şubedeki kimse uygulamaya giremiyordu.
+insert into auth.users (id) values ('33333333-3333-3333-3333-333333333333');
+
+select pg_temp.check('şube: eşlenmemiş kodla giriş çalışıyor',
+  (select institution_id from private.link_pdks_profile(
+     '33333333-3333-3333-3333-333333333333',
+     'deneme.kullanici', 'Deneme Kullanıcı', '999999',
+     777::smallint,                      -- eşlemede olmayan şube
+     'Test Departman', 'Bilinmeyen Şube',
+     'Test Pozisyon', 'deneme@mlpcare.com', 'Yönetici', 'Çalışan',
+     date '2024-01-01')),
+  1::smallint);                          -- varsayılan kuruma düştü
+
+select pg_temp.check('şube: eşlenmemiş kod listeye kaydedildi',
+  (select count(*) from public.pdks_unmapped_branches where branch_code = 777),
+  1::bigint);
+
+select pg_temp.check('şube: şube adı da kaydedildi (liste okunabilir olsun)',
+  (select branch_name from public.pdks_unmapped_branches where branch_code = 777),
+  'Bilinmeyen Şube');
+
+-- Doğrulanmış eşleme varsayılana düşmemeli.
+insert into auth.users (id) values ('44444444-4444-4444-4444-444444444444');
+insert into public.pdks_branch_map (branch_code, branch_name, institution_id, is_confirmed)
+  values (202, 'Liv Test', 2, true) on conflict (branch_code) do nothing;
+
+select pg_temp.check('şube: doğrulanmış eşleme kullanılıyor',
+  (select institution_id from private.link_pdks_profile(
+     '44444444-4444-4444-4444-444444444444',
+     'liv.kullanici', 'Liv Kullanıcı', '888888',
+     202::smallint, 'Departman', 'Liv Test', 'Pozisyon',
+     'liv@mlpcare.com', 'Yönetici', 'Çalışan', date '2024-01-01')),
+  2::smallint);
+
+select pg_temp.check('şube: doğrulanmış olan listede görünmüyor',
+  (select count(*) from public.pdks_unmapped_branches where branch_code = 202),
+  0::bigint);
+
 \echo ''
 \echo 'TUM KONTROLLER GECTI'

@@ -191,14 +191,11 @@ Deno.serve(async (req) => {
   });
 
   if (linkError) {
+    // Eşlenmemiş şube artık hata değil: varsayılan kuruma düşüyor ve şube
+    // public.pdks_unmapped_branches listesine kaydediliyor. Buraya düşmek
+    // gerçek bir arıza demek.
     console.error('link_pdks_profile_failed', linkError.message);
-    // Şube eşlemesi eksikse bunu ayırt edilebilir kılıyoruz: kullanıcı
-    // hatası değil, bizim tamamlamamız gereken bir veri eksiği.
-    const missingBranch = linkError.message.includes('kurum eşlemesi');
-    return jsonResponse(
-      { error: missingBranch ? 'branch_not_mapped' : 'profile_link_failed' },
-      missingBranch ? 409 : 500,
-    );
+    return jsonResponse({ error: 'profile_link_failed' }, 500);
   }
 
   // Avatar yolunu profile yaz. link_pdks_profile bu alana dokunmuyor:
