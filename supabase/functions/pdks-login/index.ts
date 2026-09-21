@@ -42,27 +42,24 @@ Deno.serve(async (req) => {
   try {
     const result = await login(username.trim(), password, (device ?? {}) as DeviceInfo);
 
-    // Eski challenge'ları temizle (tabloyu süresiz büyütmeyelim).
-    await db.rpc('purge_expired_challenges').catch(() => {});
+    // private şemasına PostgREST üzerinden doğrudan yazılamıyor
+    // (PGRST106: yalnızca public ve graphql_public yayınlanmış durumda).
+    // Erişim public'teki service_role'a özel sarmalayıcıyla sağlanıyor.
+    const { data: challengeId, error } = await db.rpc('create_pdks_challenge', {
+      p_username:   result.user.username,
+      p_pdks_token: result.token,
+      p_pdks_user:  result.user,
+    });
 
-    const { data: challenge, error } = await db
-      .schema('private')
-      .from('pdks_challenges')
-      .insert({
-        username: result.user.username,
-        pdks_token: result.token,
-        pdks_user: result.user,
-      })
-      .select('id')
-      .single();
-
-    if (error || !challenge) {
+    if (error || !challengeId) {
+      // Buraya düşersek PDKS SMS'i ZATEN GÖNDERDİ ama kodu eşleştireceğimiz
+      // kayıt oluşmadı; kullanıcı baştan denemek zorunda kalır.
       console.error('challenge_insert_failed', error?.message);
       return jsonResponse({ error: 'server_error' }, 500);
     }
 
     return jsonResponse({
-      challenge_id: challenge.id,
+      challenge_id: challengeId,
       masked_phone: maskedPhone(result.user.telefon),
     });
   } catch (e) {

@@ -40,25 +40,37 @@ function authEmail(user: PdksUser): string {
 /// özetini sunucuda tüketerek oturumu burada kuruyoruz — link hiçbir zaman
 /// e-postayla gönderilmiyor.
 async function mintSession(email: string) {
-  let link = await authClient.auth.admin.generateLink({ type: 'magiclink', email });
-
-  if (link.error) {
-    // Kullanıcı henüz yoksa oluştur ve tekrar dene.
-    const created = await authClient.auth.admin.createUser({
-      email,
-      email_confirm: true,
-    });
-    if (created.error) throw new Error(`create_user: ${created.error.message}`);
-    link = await authClient.auth.admin.generateLink({ type: 'magiclink', email });
-    if (link.error) throw new Error(`generate_link: ${link.error.message}`);
+  // ÖNCE kullanıcıyı oluştur ve e-postasını doğrulanmış işaretle.
+  //
+  // Sırası önemli: generateLink var olmayan kullanıcı için HATA VERMİYOR,
+  // kullanıcıyı sessizce oluşturuyor — ama ürettiği bağlantı bir signup
+  // doğrulaması oluyor ve magiclink olarak doğrulanınca 403 "Email link is
+  // invalid or has expired" dönüyor. İlk kez giren her çalışan buna
+  // takılırdı; ikinci denemede çalışması hatayı gizliyordu.
+  //
+  // Kullanıcı zaten varsa createUser "already been registered" döner;
+  // bu beklenen bir durum, yutuyoruz.
+  const created = await authClient.auth.admin.createUser({
+    email,
+    email_confirm: true,
+  });
+  if (created.error && !/already/i.test(created.error.message)) {
+    throw new Error(`create_user: ${created.error.message}`);
   }
 
-  const hashed = link.data.properties?.hashed_token;
-  if (!hashed) throw new Error('missing_hashed_token');
-
-  const verified = await authClient.auth.verifyOtp({
-    token_hash: hashed,
+  const link = await authClient.auth.admin.generateLink({
     type: 'magiclink',
+    email,
+  });
+  if (link.error) throw new Error(`generate_link: ${link.error.message}`);
+
+  const props = link.data.properties;
+  if (!props?.hashed_token) throw new Error('missing_hashed_token');
+
+  // Doğrulama tipini sabitlemek yerine sunucunun bildirdiğini kullanıyoruz.
+  const verified = await authClient.auth.verifyOtp({
+    token_hash: props.hashed_token,
+    type: (props.verification_type ?? 'magiclink') as 'magiclink',
   });
   if (verified.error || !verified.data.user || !verified.data.session) {
     throw new Error(`verify_otp: ${verified.error?.message ?? 'no session'}`);
@@ -112,16 +124,17 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'invalid_request' }, 400);
   }
 
-  // Challenge'ı al: tüketilmemiş ve süresi geçmemiş olmalı.
-  const { data: challenge } = await db
-    .schema('private')
-    .from('pdks_challenges')
-    .select('id, pdks_token, pdks_user, expires_at, consumed_at')
-    .eq('id', challenge_id)
-    .maybeSingle();
+  // Challenge'ı al ve aynı işlemde tüket. private şeması API'ye kapalı
+  // olduğu için service_role'a özel public sarmalayıcı kullanılıyor.
+  //
+  // Burada yalnızca OKUYORUZ. Tüketme, kod PDKS'de doğrulandıktan sonra:
+  // yanlış kod girişi challenge'ı yakmasın, kullanıcı parolayı baştan
+  // girmek zorunda kalmasın.
+  const { data: rows, error: challengeError } = await db
+    .rpc('read_pdks_challenge', { p_id: challenge_id });
 
-  if (!challenge || challenge.consumed_at
-      || new Date(challenge.expires_at) < new Date()) {
+  const challenge = Array.isArray(rows) ? rows[0] : null;
+  if (challengeError || !challenge?.pdks_token) {
     return jsonResponse({ error: 'challenge_expired' }, 401);
   }
 
@@ -140,12 +153,13 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: 'server_error' }, 502);
   }
 
-  // Kod doğrulandı: challenge tek kullanımlık, hemen tüketildi işaretle.
-  // Doğrulamadan SONRA işaretliyoruz ki yanlış kod girişi girişimi
-  // harcamasın (PDKS'nin kendi deneme limiti geçerli kalsın).
-  await db.schema('private').from('pdks_challenges')
-    .update({ consumed_at: new Date().toISOString() })
-    .eq('id', challenge.id);
+  // Kod doğru. Challenge'ı şimdi tüket — koşullu UPDATE atomik olduğu için
+  // eşzamanlı ikinci bir istek buradan boş döner ve reddedilir.
+  const { data: consumed } = await db
+    .rpc('consume_pdks_challenge', { p_id: challenge_id });
+  if (consumed !== true) {
+    return jsonResponse({ error: 'challenge_expired' }, 401);
+  }
 
   // 2) Fotoğrafı al (kritik değil) ve Supabase oturumunu üret.
   const [photo, minted] = await Promise.all([
@@ -194,6 +208,10 @@ Deno.serve(async (req) => {
     await db.from('profiles')
       .update({ avatar_path: avatarPath })
       .eq('id', minted.user.id);
+    // Yanıttaki profil link_pdks_profile'dan geliyor, yani bu güncellemeden
+    // ÖNCEKİ hâli. Değeri elde yansıtıyoruz ki istemci ikinci bir okuma
+    // yapmadan avatarı gösterebilsin.
+    profile.avatar_path = avatarPath;
   }
 
   return jsonResponse({
