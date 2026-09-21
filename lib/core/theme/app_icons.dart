@@ -49,6 +49,7 @@ abstract final class AppIcons {
   static const IconData users = LucideIcons.users300;
   static const IconData globe = LucideIcons.globe300;
   static const IconData eye = LucideIcons.eye300;
+  static const IconData eyeOff = LucideIcons.eyeOff300;
   static const IconData help = LucideIcons.circleHelp300;
   static const IconData fileText = LucideIcons.fileText300;
   static const IconData shieldAlert = LucideIcons.shieldAlert300;

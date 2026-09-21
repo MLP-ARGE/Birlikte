@@ -1,18 +1,23 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/device/device_info_provider.dart';
 import '../../../core/supabase/supabase_client_provider.dart';
 
 /// Giriş akışının hataları — ekranın kullanıcıya ne göstereceğini belirler.
 enum AuthFailure {
-  /// Girilen numara/TCKN biçimsel olarak geçersiz.
-  invalidIdentifier,
+  /// Kullanıcı adı ya da parola hatalı.
+  invalidCredentials,
 
-  /// Kod yanlış veya süresi dolmuş.
+  /// SMS kodu yanlış veya süresi dolmuş.
   invalidCode,
 
-  /// Çok fazla deneme yapıldı.
-  rateLimited,
+  /// Giriş denemesinin süresi doldu; baştan başlamak gerekiyor.
+  challengeExpired,
+
+  /// Çalışanın şubesi henüz bir kuruma eşlenmemiş — bizim tamamlamamız
+  /// gereken bir veri eksiği, kullanıcının yapabileceği bir şey yok.
+  branchNotMapped,
 
   /// Ağ veya sunucu hatası.
   network,
@@ -28,83 +33,94 @@ class AuthException implements Exception {
   String toString() => 'AuthException($failure, $message)';
 }
 
-/// Kod gönderiminin sonucu.
+/// Parola doğrulandı, SMS gönderildi. İkinci adım bu kimlikle sürüyor.
 class OtpChallenge {
-  const OtpChallenge({required this.maskedPhone});
+  const OtpChallenge({required this.challengeId, this.maskedPhone});
 
-  /// Kodun gittiği numaranın maskeli hâli, örn. "+90 532 *** ** 48".
+  /// Sunucudaki giriş denemesinin kimliği.
   ///
-  /// null olabilir: bordroda eşleşme bulunmadığında sunucu bilerek aynı
-  /// yanıtı döner (çalışan listesi numara denenerek çıkarılamasın diye).
-  /// Bu durumda SMS ekranı yine açılır ama kod gelmez.
+  /// PDKS token'ının yerine geçiyor: token cihaza hiç inmiyor, sunucuda
+  /// tutuluyor. Böylece istemci SMS adımını atlayıp doğrudan PDKS'ye
+  /// istek atamıyor.
+  final String challengeId;
+
+  /// PDKS'den gelen maskeli numara, örn. "54******89". Vermezse null.
   final String? maskedPhone;
 }
 
-/// Giriş akışı (Figma: login → sms-verification).
+/// Giriş akışı — MLPCARE PDKS üzerinden.
 ///
-/// Bordro doğrulaması ve profil bağlama sunucuda (Edge Function) yapılır;
-/// istemci yalnızca iki uç çağırır.
+/// Kullanıcı adı + parola PDKS'de doğrulanır, ardından SMS kodu onaylanır.
+/// Her iki adım da Edge Function üzerinden geçer: parola ve PDKS token'ı
+/// cihazda tutulmaz.
+///
+/// PDKS kimliği doğrular, Supabase yetkilendirmeyi taşır — kampanya, kupon,
+/// puan ve favori verileri RLS ile auth.uid() üzerinden korunduğu için
+/// doğrulama sonunda bir Supabase oturumu kuruluyor.
 class AuthRepository {
-  const AuthRepository(this._client);
+  const AuthRepository(this._client, this._device);
 
   final SupabaseClient _client;
+  final PdksDeviceInfo? _device;
 
-  /// Telefon veya TCKN ile kod ister.
-  Future<OtpChallenge> requestOtp(String identifier) async {
+  /// Adım 1: kullanıcı adı + parola. Başarılıysa PDKS SMS gönderir.
+  Future<OtpChallenge> requestOtp({
+    required String username,
+    required String password,
+  }) async {
     try {
       final response = await _client.functions.invoke(
-        'auth-lookup',
-        body: {'identifier': identifier},
+        'pdks-login',
+        body: {
+          'username': username,
+          'password': password,
+          if (_device != null) 'device': _device.toJson(),
+        },
       );
 
       final data = response.data as Map<String, dynamic>?;
-      if (response.status == 429) {
-        throw const AuthException(AuthFailure.rateLimited);
-      }
       if (response.status != 200 || data == null) {
-        throw const AuthException(AuthFailure.network);
+        throw AuthException(_failureFor(response.status, data));
       }
 
-      return OtpChallenge(maskedPhone: data['masked_phone'] as String?);
+      return OtpChallenge(
+        challengeId: data['challenge_id'] as String,
+        maskedPhone: data['masked_phone'] as String?,
+      );
     } on AuthException {
       rethrow;
     } on FunctionException catch (e) {
-      if (e.status == 429) {
-        throw const AuthException(AuthFailure.rateLimited);
-      }
-      if (e.status == 400) {
-        throw const AuthException(AuthFailure.invalidIdentifier);
-      }
-      throw AuthException(AuthFailure.network, e.toString());
+      throw AuthException(_failureFor(e.status, e.details));
     } catch (e) {
       throw AuthException(AuthFailure.network, e.toString());
     }
   }
 
-  /// Kodu doğrular, oturumu açar ve profili bordroya bağlar.
+  /// Adım 2: SMS kodunu doğrula, oturumu aç.
   Future<void> verifyOtp({
-    required String identifier,
+    required String challengeId,
     required String code,
   }) async {
     late final Map<String, dynamic> data;
     try {
       final response = await _client.functions.invoke(
-        'auth-verify',
-        body: {'identifier': identifier, 'code': code},
+        'pdks-verify',
+        body: {
+          'challenge_id': challengeId,
+          'code': code,
+          if (_device != null) 'device': _device.toJson(),
+        },
       );
-      if (response.status == 401) {
-        throw const AuthException(AuthFailure.invalidCode);
-      }
       if (response.status != 200 || response.data == null) {
-        throw const AuthException(AuthFailure.network);
+        throw AuthException(
+          _failureFor(response.status, response.data as Map<String, dynamic>?),
+        );
       }
       data = Map<String, dynamic>.from(response.data as Map);
     } on AuthException {
       rethrow;
     } on FunctionException catch (e) {
-      throw AuthException(
-        e.status == 401 ? AuthFailure.invalidCode : AuthFailure.network,
-      );
+      throw AuthException(_failureFor(e.status, e.details));
     } catch (e) {
       throw AuthException(AuthFailure.network, e.toString());
     }
@@ -120,9 +136,24 @@ class AuthRepository {
     await _client.auth.setSession(refreshToken);
   }
 
+  /// Sunucunun döndürdüğü hata kodunu ekranın anlayacağı türe çevirir.
+  static AuthFailure _failureFor(int? status, Object? body) {
+    final code = body is Map ? body['error'] as String? : null;
+    return switch (code) {
+      'invalid_credentials' => AuthFailure.invalidCredentials,
+      'invalid_code' => AuthFailure.invalidCode,
+      'challenge_expired' => AuthFailure.challengeExpired,
+      'branch_not_mapped' => AuthFailure.branchNotMapped,
+      _ => status == 401 ? AuthFailure.invalidCode : AuthFailure.network,
+    };
+  }
+
   Future<void> signOut() => _client.auth.signOut();
 }
 
-final authRepositoryProvider = Provider<AuthRepository>(
-  (ref) => AuthRepository(ref.watch(supabaseProvider)),
-);
+final authRepositoryProvider = Provider<AuthRepository>((ref) {
+  // Cihaz bilgisi henüz yüklenmediyse null geçiyoruz: giriş bunu beklemek
+  // zorunda değil, Edge Function eksik alanlar için nötr değerlere düşüyor.
+  final device = ref.watch(deviceInfoProvider).value;
+  return AuthRepository(ref.watch(supabaseProvider), device);
+});

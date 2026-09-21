@@ -18,12 +18,34 @@ class ProfileRepository {
     final rows = await _client
         .from('profiles')
         .select('full_name, employee_no, institution_id, department, '
-            'region, facility, avatar_path, language, theme')
+            'region, facility, avatar_path, language, theme, '
+            'position, email, manager_name, person_type, hired_at')
         .limit(1);
 
     if (rows.isEmpty) return null;
-    return _fromRow(rows.first);
+    final row = rows.first;
+    return _fromRow(row, await _avatarUrl(row['avatar_path'] as String?));
   }
+
+  /// Avatar bucket'ı özel (çalışan fotoğrafı kişisel veri), o yüzden
+  /// doğrudan URL yok — kısa ömürlü imzalı bağlantı üretiyoruz. RLS
+  /// yalnızca kullanıcının kendi dosyasına izin veriyor.
+  ///
+  /// Fotoğraf çekilemezse profil yine yüklenir; avatar baş harflere düşer.
+  Future<String?> _avatarUrl(String? path) async {
+    if (path == null || path.isEmpty) return null;
+    try {
+      return await _client.storage
+          .from('avatars')
+          .createSignedUrl(path, _avatarUrlTtl.inSeconds);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// İmzalı bağlantı ömrü. Oturum boyunca yeniden üretmeye gerek kalmasın
+  /// diye uzun tutuluyor; fotoğraf zaten değişmiyor.
+  static const _avatarUrlTtl = Duration(hours: 6);
 
   Future<void> updateAppearance({String? language, String? theme}) async {
     final userId = _client.auth.currentUser?.id;
@@ -35,7 +57,7 @@ class ProfileRepository {
     }).eq('id', userId);
   }
 
-  static VerifiedProfile _fromRow(Map<String, dynamic> row) {
+  static VerifiedProfile _fromRow(Map<String, dynamic> row, String? avatarUrl) {
     return VerifiedProfile(
       fullName: row['full_name'] as String,
       employeeNo: row['employee_no'] as String,
@@ -46,7 +68,12 @@ class ProfileRepository {
       // Bordro eşleşme tarihi profil tablosunda tutulmuyor; kurum onay
       // ekranı bunu ayrıca çekiyor.
       matchedAt: DateTime.now(),
-      photoUrl: row['avatar_path'] as String?,
+      photoUrl: avatarUrl,
+      position: row['position'] as String?,
+      email: row['email'] as String?,
+      managerName: row['manager_name'] as String?,
+      personType: row['person_type'] as String?,
+      hiredAt: DateTime.tryParse((row['hired_at'] as String?) ?? ''),
       language: (row['language'] as String?) ?? 'tr',
       theme: (row['theme'] as String?) ?? 'system',
     );

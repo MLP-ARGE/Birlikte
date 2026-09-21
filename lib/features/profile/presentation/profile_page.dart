@@ -58,7 +58,13 @@ class ProfilePage extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.s4),
             Text(
-              'Sicil No: ${profile.employeeNo} · ${profile.region}',
+              // PDKS bölge bilgisi vermiyor; boşken "Sicil No: 147551 · "
+              // gibi sarkık bir metin kalmasın diye parçalar süzülüyor.
+              [
+                'Sicil No: ${profile.employeeNo}',
+                if (profile.facility.isNotEmpty) profile.facility,
+                if (profile.region.isNotEmpty) profile.region,
+              ].join(' · '),
               style: AppTypography.bodySmall.copyWith(
                 color: AppColors.textSecondary,
               ),
@@ -278,6 +284,18 @@ class _ProfileCard extends StatelessWidget {
                       color: AppColors.textSecondary,
                     ),
                   ),
+                  if (profile.position case final position?
+                      when position.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      position,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.caption.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

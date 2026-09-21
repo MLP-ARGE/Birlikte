@@ -34,13 +34,27 @@ class FakeAuthRepository implements AuthRepository {
 
   static const validCode = '145823';
 
+  static const validUsername = 'ayse.yilmaz';
+  static const validPassword = 'Gecerli1*';
+  static const challengeId = 'test-challenge-0001';
+
   @override
-  Future<OtpChallenge> requestOtp(String identifier) async =>
-      const OtpChallenge(maskedPhone: '+90 532 *** ** 48');
+  Future<OtpChallenge> requestOtp({
+    required String username,
+    required String password,
+  }) async {
+    if (username != validUsername || password != validPassword) {
+      throw const AuthException(AuthFailure.invalidCredentials);
+    }
+    return const OtpChallenge(
+      challengeId: challengeId,
+      maskedPhone: '53******48',
+    );
+  }
 
   @override
   Future<void> verifyOtp({
-    required String identifier,
+    required String challengeId,
     required String code,
   }) async {
     if (code != validCode) {

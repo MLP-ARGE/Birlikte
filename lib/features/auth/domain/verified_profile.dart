@@ -12,6 +12,11 @@ class VerifiedProfile {
     required this.employeeNo,
     required this.matchedAt,
     this.photoUrl,
+    this.position,
+    this.email,
+    this.managerName,
+    this.personType,
+    this.hiredAt,
     this.language = 'tr',
     this.theme = 'system',
   });
@@ -35,7 +40,25 @@ class VerifiedProfile {
   final DateTime matchedAt;
 
   /// Profil fotoğrafı; yoksa avatar baş harflere düşer.
+  ///
+  /// PDKS fotoğrafı base64 olarak veriyor; Edge Function onu özel bir
+  /// Storage bucket'ına yazıyor ve burada imzalı URL'i tutuluyor.
   final String? photoUrl;
+
+  /// PDKS'den gelen görev/unvan, örn. "Mobil Uygulama Geliştirme Sorumlusu".
+  final String? position;
+
+  /// Kurum e-postası.
+  final String? email;
+
+  /// Bağlı olduğu yöneticinin adı.
+  final String? managerName;
+
+  /// PDKS'deki kişi tipi, örn. "Çalışan".
+  final String? personType;
+
+  /// İşe giriş tarihi.
+  final DateTime? hiredAt;
 
   /// `public.app_language` — 'tr' | 'en'.
   final String language;
@@ -47,5 +70,9 @@ class VerifiedProfile {
   String get firstName => fullName.trim().split(RegExp(r'\s+')).first;
 
   /// identity-card alt satırı — Figma'da nokta ayraçlı.
-  String get placement => '$region • $department';
+  ///
+  /// PDKS bölge bilgisi vermiyor; boşsa ayraç bırakmadan yalnızca departman
+  /// gösteriliyor ("• Bilgi Teknolojileri" gibi sarkık bir metin olmasın).
+  String get placement =>
+      [region, department].where((p) => p.isNotEmpty).join(' • ');
 }

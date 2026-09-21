@@ -43,16 +43,17 @@ void main() {
     await advance();
     expect(find.text('Giriş yap'), findsOneWidget);
 
-    // Devam, geçerli numara girilene kadar pasif.
-    await tester.enterText(find.byType(TextField).first, '5321234548');
+    // Devam, kullanıcı adı ve parola dolana kadar pasif.
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), FakeAuthRepository.validUsername);
+    await tester.enterText(fields.at(1), FakeAuthRepository.validPassword);
     await advance();
-    expect(find.text('+90 532 123 45 48'), findsOneWidget);
 
     await tester.tap(find.text('Devam'));
     await advance();
     expect(find.text('Doğrulama kodu'), findsOneWidget);
     expect(
-      find.text('+90 532 *** ** 48 numarasına gönderdiğimiz 6 haneli kodu gir.'),
+      find.text('53******48 numarasına gönderdiğimiz 6 haneli kodu gir.'),
       findsOneWidget,
     );
 

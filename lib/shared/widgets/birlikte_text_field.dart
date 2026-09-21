@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_icons.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/theme/app_typography.dart';
 
@@ -29,6 +30,7 @@ class BirlikteTextField extends StatefulWidget {
     this.textInputAction,
     this.inputFormatters,
     this.maxLength,
+    this.obscureText = false,
     this.onChanged,
     this.onSubmitted,
   });
@@ -37,6 +39,10 @@ class BirlikteTextField extends StatefulWidget {
   final TextEditingController? controller;
   final String? hint;
   final String? helper;
+
+  /// Parola alanları için. Göz ikonuyla geçici olarak açılabiliyor —
+  /// kullanıcı yazdığını doğrulayamazsa uzun parolalarda hata oranı artıyor.
+  final bool obscureText;
 
   /// Doluysa alan hata görünümüne geçer ve yardımcı metnin yerini alır.
   final String? errorText;
@@ -57,6 +63,7 @@ class BirlikteTextField extends StatefulWidget {
 class _BirlikteTextFieldState extends State<BirlikteTextField> {
   late final FocusNode _focus = FocusNode()..addListener(_onFocusChange);
   bool _focused = false;
+  bool _revealed = false;
 
   void _onFocusChange() => setState(() => _focused = _focus.hasFocus);
 
@@ -133,9 +140,12 @@ class _BirlikteTextFieldState extends State<BirlikteTextField> {
               focusNode: _focus,
               enabled: widget.enabled,
               autofocus: widget.autofocus,
-              expands: true,
-              maxLines: null,
+              // obscureText tek satır zorunlu kılıyor; expands ile birlikte
+              // kullanılamaz (Flutter assert atar).
+              expands: !widget.obscureText,
+              maxLines: widget.obscureText ? 1 : null,
               minLines: null,
+              obscureText: widget.obscureText && !_revealed,
               textAlignVertical: TextAlignVertical.center,
               keyboardType: widget.keyboardType,
               textInputAction: widget.textInputAction,
@@ -163,6 +173,18 @@ class _BirlikteTextFieldState extends State<BirlikteTextField> {
                 hintStyle: AppTypography.bodyLarge.copyWith(
                   color: AppColors.textDisabled,
                 ),
+                suffixIcon: widget.obscureText
+                    ? GestureDetector(
+                        onTap: () => setState(() => _revealed = !_revealed),
+                        behavior: HitTestBehavior.opaque,
+                        child: Icon(
+                          _revealed ? AppIcons.eyeOff : AppIcons.eye,
+                          size: 20,
+                          color: AppColors.iconSubtle,
+                        ),
+                      )
+                    : null,
+                suffixIconConstraints: const BoxConstraints(minWidth: 32),
               ),
             ),
           ),

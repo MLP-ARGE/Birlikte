@@ -71,8 +71,8 @@ void main() {
     'sms-verification': (
       Routes.smsVerification,
       const SmsVerificationArgs(
-        identifier: '+90 532 123 45 48',
-        maskedPhone: '+90 532 *** ** 48',
+        challengeId: 'test-challenge-0001',
+        maskedPhone: '53******48',
       ),
       false,
     ),

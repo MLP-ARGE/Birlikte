@@ -16,13 +16,14 @@ import '../data/auth_repository.dart';
 
 /// Login ekranından SMS ekranına taşınan bilgi.
 class SmsVerificationArgs {
-  const SmsVerificationArgs({required this.identifier, this.maskedPhone});
+  const SmsVerificationArgs({required this.challengeId, this.maskedPhone});
 
-  /// Kullanıcının girdiği telefon ya da TCKN — doğrulamada aynısı gerekiyor.
-  final String identifier;
+  /// Sunucudaki giriş denemesinin kimliği (bkz. AuthRepository.OtpChallenge).
+  ///
+  /// PDKS token'ı cihaza inmiyor; ikinci adım bu kimlikle sürüyor.
+  final String challengeId;
 
-  /// Sunucudan gelen maskeli numara, örn. "+90 532 *** ** 48".
-  /// Bordroda eşleşme yoksa null (sunucu bilerek ayrım yapmıyor).
+  /// PDKS'den gelen maskeli numara, örn. "54******89". Vermezse null.
   final String? maskedPhone;
 }
 
@@ -63,20 +64,16 @@ class _SmsVerificationPageState extends ConsumerState<SmsVerificationPage> {
     _startCountdown();
   }
 
-  /// Kodu yeniden gönderir ve sayacı sıfırlar.
-  Future<void> _resend() async {
-    setState(() => _error = null);
-    try {
-      await ref
-          .read(authRepositoryProvider)
-          .requestOtp(widget.args.identifier);
-      _startCountdown();
-    } on AuthException catch (e) {
-      if (!mounted) return;
-      setState(() => _error = e.failure == AuthFailure.rateLimited
-          ? 'Çok sık denendi. Biraz bekleyip tekrar dene.'
-          : 'Kod gönderilemedi.');
-    }
+  /// Yeni kod için giriş ekranına döner.
+  ///
+  /// Buradan doğrudan yeniden gönderemiyoruz: PDKS yeni SMS'i ancak
+  /// kullanıcı adı + parola ile üretiyor (`/loginwithsms`), parola ise
+  /// bilinçli olarak cihazda saklanmıyor. Sessizce başarısız olan bir
+  /// "tekrar gönder" yerine kullanıcıyı ne yapması gerektiğine
+  /// yönlendiriyoruz.
+  void _resend() {
+    if (!context.canPop()) return;
+    context.pop();
   }
 
   void _startCountdown() {
@@ -108,16 +105,23 @@ class _SmsVerificationPageState extends ConsumerState<SmsVerificationPage> {
 
     try {
       await ref.read(authRepositoryProvider).verifyOtp(
-        identifier: widget.args.identifier,
+        challengeId: widget.args.challengeId,
         code: _code,
       );
       if (!mounted) return;
       unawaited(context.push(Routes.welcome));
     } on AuthException catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.failure == AuthFailure.invalidCode
-          ? 'Kod hatalı veya süresi dolmuş.'
-          : 'Bağlantı kurulamadı. Lütfen tekrar dene.');
+      setState(() => _error = switch (e.failure) {
+        AuthFailure.invalidCode => 'Kod hatalı veya süresi dolmuş.',
+        // Challenge'ın ömrü doldu: kod doğru olsa bile baştan başlamak
+        // gerekiyor, kullanıcıya ne yapacağını söylüyoruz.
+        AuthFailure.challengeExpired =>
+          'Süre doldu. Lütfen giriş ekranından tekrar dene.',
+        AuthFailure.branchNotMapped =>
+          'Hesabın henüz tanımlanmamış. Lütfen İK ile iletişime geç.',
+        _ => 'Bağlantı kurulamadı. Lütfen tekrar dene.',
+      });
     } finally {
       if (mounted) setState(() => _verifying = false);
     }
@@ -216,7 +220,7 @@ class _SmsVerificationPageState extends ConsumerState<SmsVerificationPage> {
   }
 }
 
-/// "Kodu tekrar gönder" + geri sayım rozeti (Figma: `resend-row` 190:64).
+/// "Yeni kod al" + geri sayım rozeti (Figma: `resend-row` 190:64).
 class _ResendRow extends StatelessWidget {
   const _ResendRow({required this.remaining, required this.onResend});
 
@@ -232,7 +236,7 @@ class _ResendRow extends StatelessWidget {
         GestureDetector(
           onTap: onResend,
           child: Text(
-            'Kodu tekrar gönder',
+            'Yeni kod al',
             style: AppTypography.buttonSmall.copyWith(
               color: enabled ? AppColors.textBrand : AppColors.textDisabled,
             ),
