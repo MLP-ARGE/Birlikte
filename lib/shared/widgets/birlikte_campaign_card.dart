@@ -54,92 +54,121 @@ class BirlikteCampaignCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(color: AppColors.borderDefault),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(AppRadius.md),
-              ),
-              child: SizedBox(
-                height: imageHeight,
-                width: double.infinity,
-                child: Stack(
-                  children: [
-                    Positioned.fill(child: _Image(url: campaign.imageUrl)),
-                    Positioned(
-                      top: AppSpacing.s4,
-                      right: AppSpacing.s4,
-                      child: _FavoriteButton(
-                        active: isFavorite ?? campaign.favorite,
-                        onTap: onFavoriteTap,
-                      ),
+        // Yükseklik sınırlı mı? Ana sayfadaki yatay slider kartlara sabit
+        // yükseklik veriyor (SizedBox), kampanyalar listesi vermiyor.
+        //
+        // Ayrımı bilmek zorundayız: indirim satırını alta itmek için gereken
+        // Spacer, yüksekliği sınırsız bir Column'da "unbounded height"
+        // hatası atar. Sınırlıyken itiyoruz, değilken içerik kadar kalıyor.
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final bounded = constraints.hasBoundedHeight;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: bounded ? MainAxisSize.max : MainAxisSize.min,
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(AppRadius.md),
+                  ),
+                  child: SizedBox(
+                    height: imageHeight,
+                    width: double.infinity,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(child: _Image(url: campaign.imageUrl)),
+                        Positioned(
+                          top: AppSpacing.s4,
+                          right: AppSpacing.s4,
+                          child: _FavoriteButton(
+                            active: isFavorite ?? campaign.favorite,
+                            onTap: onFavoriteTap,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.s5),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (campaign.institution case final institution?)
-                    BirlikteInstitutionBadge(
-                      institution: institution,
-                      height: 16,
-                    )
-                  else
-                    const BirlikteInstitutionBadge.allInstitutions(),
-                  const SizedBox(height: 10),
-                  Text(
-                    campaign.brand,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTypography.labelSmall.copyWith(
-                      color: AppColors.textSecondary,
+                _maybeExpanded(
+                  bounded: bounded,
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.s5),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: bounded
+                          ? MainAxisSize.max
+                          : MainAxisSize.min,
+                      children: [
+                        if (campaign.institution case final institution?)
+                          BirlikteInstitutionBadge(
+                            institution: institution,
+                            height: 16,
+                          )
+                        else
+                          const BirlikteInstitutionBadge.allInstitutions(),
+                        const SizedBox(height: 10),
+                        Text(
+                          campaign.brand,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.labelSmall.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.s2),
+                        Text(
+                          campaign.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.h5.copyWith(
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        if (campaign.pointsCost case final points?) ...[
+                          const SizedBox(height: 14),
+                          _PointsTag(points: points),
+                        ],
+                        // Bulgu UI-002: indirim satırı kartın alt kenarına
+                        // sabitlenmeli; başlık bir ya da iki satır olsun, tüm
+                        // kartlarda aynı hizada dursun.
+                        if (bounded)
+                          const Spacer()
+                        else
+                          const SizedBox(height: 10),
+                        if (bounded) const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Text(
+                              campaign.discountLabel,
+                              style: AppTypography.campaignValue.copyWith(
+                                color: AppColors.textBrand,
+                              ),
+                            ),
+                            const Spacer(),
+                            Text(
+                              '${campaign.daysLeft} gün kaldı',
+                              style: AppTypography.caption.copyWith(
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.s2),
-                  Text(
-                    campaign.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTypography.h5.copyWith(
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  if (campaign.pointsCost case final points?) ...[
-                    const SizedBox(height: 14),
-                    _PointsTag(points: points),
-                  ],
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Text(
-                        campaign.discountLabel,
-                        style: AppTypography.campaignValue.copyWith(
-                          color: AppColors.textBrand,
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        '${campaign.daysLeft} gün kaldı',
-                        style: AppTypography.caption.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 }
+
+/// Yükseklik sınırlıysa çocuğu esnetir, değilse olduğu gibi bırakır.
+Widget _maybeExpanded({required bool bounded, required Widget child}) =>
+    bounded ? Expanded(child: child) : child;
 
 /// Görsel alanı — Figma'nın yer tutucusu (marka renginde hediye ikonu).
 class _Image extends StatelessWidget {

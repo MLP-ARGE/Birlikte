@@ -189,6 +189,13 @@ class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
   void _openFilterSheet() {
     showModalBottomSheet<void>(
       context: context,
+      // Bulgu UI-003: sheet kök navigator'da açılmalı.
+      //
+      // Sekmeler StatefulShellRoute.indexedStack ile kuruluyor ve her dalın
+      // kendi Navigator'ı var. Varsayılan davranışta sheet o dalın içinde
+      // açılıyor, dolayısıyla alt navigasyon barı sheet'in ÜSTÜNDE kalıyor:
+      // karartma barı kapsamıyor ve sheet içeriği barla kesişiyor.
+      useRootNavigator: true,
       backgroundColor: AppColors.surface,
       // Kategori sayısı (Tümü + 8) modalın varsayılan yüksekliğini aşıyor;
       // isScrollControlled olmadan bu, içerik kırpılmadan taşma uyarısına
@@ -255,7 +262,17 @@ class _SearchRow extends StatelessWidget {
                         decoration: InputDecoration(
                           isDense: true,
                           filled: false,
+                          // Bulgu UI-004: `border` yalnızca yedek değer;
+                          // temadaki focusedBorder odaklanınca onu ezip
+                          // sarmalayıcının İÇİNE ikinci bir dikdörtgen
+                          // çiziyordu. Her durumu açıkça kapatıyoruz —
+                          // alanın çerçevesi dıştaki pill'in kendisi.
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          errorBorder: InputBorder.none,
+                          focusedErrorBorder: InputBorder.none,
                           hintText: 'Kampanya veya marka ara',
                           hintStyle: AppTypography.labelLarge.copyWith(
                             color: AppColors.textSecondary,
@@ -321,7 +338,13 @@ class _CategoryChips extends StatelessWidget {
       height: _height,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
+        // Bulgu UI-005: chip'ler sağ kenarda kesiliyor ve kaydırılabilir
+        // oldukları belli olmuyor. Sağdaki dolguyu küçültüyoruz ki son chip
+        // kısmen görünsün — kesilmiş değil, devam ediyor izlenimi versin.
+        padding: const EdgeInsets.only(
+          left: AppSpacing.screenH,
+          right: AppSpacing.s4,
+        ),
         children: [
           BirlikteChip(
             label: 'Tümü',
