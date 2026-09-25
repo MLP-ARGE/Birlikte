@@ -35,6 +35,27 @@ class CampaignsListPage extends ConsumerStatefulWidget {
 class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
   final _searchController = TextEditingController();
   CampaignCategory? _category;
+
+  /// Kampanyası olan kategoriler, enum sırasına sadık kalarak.
+  ///
+  /// Kataloğa göre hesaplanıyor; boş kategoriyi filtrede göstermek
+  /// kullanıcıyı doğrudan "sonuç yok" ekranına götürüyordu.
+  List<CampaignCategory> _availableCategories = const [];
+
+  void _recomputeCategories(List<Campaign> all) {
+    final present = all.map((c) => c.category).toSet();
+    final next = [
+      for (final c in CampaignCategory.values)
+        if (present.contains(c)) c,
+    ];
+    if (next.length != _availableCategories.length ||
+        !next.every(_availableCategories.contains)) {
+      _availableCategories = next;
+      // Seçili kategori katalogdan düştüyse filtreyi temizle, aksi halde
+      // kullanıcı görünmeyen bir filtreyle boş listede kilitli kalır.
+      if (_category != null && !present.contains(_category)) _category = null;
+    }
+  }
   _SortOption _sort = _SortOption.recommended;
   String _query = '';
 
@@ -89,6 +110,9 @@ class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
   Widget build(BuildContext context) {
     final all = ref.watch(campaignsProvider);
     final favorites = ref.watch(favoriteSlugsProvider);
+    // build içinde: katalog Supabase'den asenkron geliyor, ilk kare boş
+    // listeyle çiziliyor. setState çağırmıyoruz — zaten bu kare çiziliyor.
+    _recomputeCategories(all);
     final filtered = _filterAndSort(all);
 
     return Scaffold(
@@ -119,6 +143,7 @@ class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
             ),
             const SizedBox(height: _sectionGap),
             _CategoryChips(
+              categories: _availableCategories,
               selected: _category,
               onSelected: (c) => setState(() => _category = c),
             ),
@@ -173,6 +198,7 @@ class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
       builder: (sheetContext) => _CategoryFilterSheet(
+        categories: _availableCategories,
         selected: _category,
         onSelected: (c) {
           setState(() => _category = c);
@@ -271,7 +297,18 @@ class _SearchRow extends StatelessWidget {
 
 /// Kategori filtre çipleri (Figma: `chips-row` 445:10135).
 class _CategoryChips extends StatelessWidget {
-  const _CategoryChips({required this.selected, required this.onSelected});
+  const _CategoryChips({
+    required this.categories,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  /// Yalnızca kampanyası olan kategoriler.
+  ///
+  /// Enum'un tamamını göstermiyoruz: katalog değiştikçe bazı kategoriler
+  /// boşalıyor (Sağlık, Otomotiv, Akaryakıt, Evcil Hayvan şu an öyle) ve
+  /// boş bir filtreye dokunmak kullanıcıyı "sonuç yok" ekranına düşürüyor.
+  final List<CampaignCategory> categories;
 
   final CampaignCategory? selected;
   final ValueChanged<CampaignCategory?> onSelected;
@@ -291,7 +328,7 @@ class _CategoryChips extends StatelessWidget {
             selected: selected == null,
             onTap: () => onSelected(null),
           ),
-          for (final category in CampaignCategory.values) ...[
+          for (final category in categories) ...[
             const SizedBox(width: AppSpacing.s3),
             BirlikteChip(
               label: category.label,
@@ -414,10 +451,13 @@ class _NoResults extends StatelessWidget {
 /// listede tekrarlıyor, mobilde tek elle kullanım için).
 class _CategoryFilterSheet extends StatelessWidget {
   const _CategoryFilterSheet({
+    required this.categories,
     required this.selected,
     required this.onSelected,
   });
 
+  /// Yatay çubukla aynı küme — iki yerde farklı liste göstermek kafa karıştırır.
+  final List<CampaignCategory> categories;
   final CampaignCategory? selected;
   final ValueChanged<CampaignCategory?> onSelected;
 
@@ -451,7 +491,7 @@ class _CategoryFilterSheet extends StatelessWidget {
                 selected: selected == null,
                 onTap: () => onSelected(null),
               ),
-              for (final category in CampaignCategory.values)
+              for (final category in categories)
                 _FilterRow(
                   label: category.label,
                   selected: selected == category,

@@ -39,7 +39,8 @@ enum CampaignCategory {
   automotive('Otomotiv'),
   travel('Seyahat'),
   fuel('Akaryakıt'),
-  pets('Evcil Hayvan');
+  pets('Evcil Hayvan'),
+  event('Etkinlik');
 
   const CampaignCategory(this.label);
 

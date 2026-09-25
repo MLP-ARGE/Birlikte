@@ -144,6 +144,7 @@ class CampaignRepository {
     6 => CampaignCategory.travel,
     7 => CampaignCategory.fuel,
     8 => CampaignCategory.pets,
+    9 => CampaignCategory.event,
     _ => CampaignCategory.shopping,
   };
 }
