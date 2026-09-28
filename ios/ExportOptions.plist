@@ -9,24 +9,41 @@
 	<key>teamID</key>
 	<string>MG2UZQRTLY</string>
 
-	<!-- Otomatik imzalama, ama sertifika CI'a elle taşınarak.
+	<!-- Elle imzalama, portaldan oluşturulmuş profille.
 	
-	     İlk denemede otomatik imzalama şu yüzden düştü: keychain'de dağıtım
-	     sertifikası yoktu, Xcode bunun üzerine Apple'dan bulut yönetimli bir
-	     tane istedi ve 403 aldı ("You haven't been given access to
-	     cloud-managed distribution certificates").
+	     Buraya üç adımda gelindi:
 	
-	     Elle imzalama (signingStyle: manual) denendi ve o da düştü: Xcode'un
-	     ürettiği Store profili "Xcode managed" sayılıyor, elle imzalama ise
-	     portaldan elle oluşturulmuş profil istiyor.
+	     1. Otomatik imzalama denendi: keychain'de dağıtım sertifikası yokken
+	        Xcode Apple'dan bulut yönetimli bir tane istedi ve 403 aldı
+	        ("You haven't been given access to cloud-managed distribution
+	        certificates"). O sertifikaları ekipte başka biri yönetiyor.
 	
-	     Çözüm ikisinin arası: sertifikayı workflow geçici keychain'e
-	     kendimiz yüklüyoruz, profil de Xcode'un ürettiği hâliyle kuruluyor;
-	     otomatik imzalama artık ikisini yerelde bulduğu için Apple'a hiç
-	     gitmiyor. -allowProvisioningUpdates bilerek verilmiyor, aksi halde
-	     yine reddedilen bulut yolunu denerdi. -->
+	     2. Sertifika CI'a elle taşınıp otomatik imzalamaya dönüldü; çalıştı,
+	        ama kullanılan sertifika 26 Eyl 2026'da doldu ve build kırıldı.
+	        Aynı profilin içindeki diğer sertifikaların özel anahtarları bu
+	        ekipte değildi.
+	
+	     3. Şimdiki çözüm: hesabın KENDİ "iOS Distribution" sertifikası
+	        (2027-09-21) ve portaldan ELLE oluşturulmuş bir App Store profili.
+	        Elle imzalama Xcode'un ürettiği profilleri kabul etmiyor
+	        ("profile is Xcode managed, but signing settings require a
+	        manually managed profile"), bu yüzden profilin elle oluşturulmuş
+	        olması şart.
+	
+	     Kazanç: artık başkasının yönettiği bulut sertifikalarına bağımlı
+	     değiliz. Bedel: sertifika 21 Eyl 2027'de dolduğunda IOS_DIST_CERT_P12
+	     ve IOS_PROVISION_PROFILE yenilenmeli. -->
 	<key>signingStyle</key>
-	<string>automatic</string>
+	<string>manual</string>
+
+	<key>signingCertificate</key>
+	<string>iPhone Distribution</string>
+
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>com.mlp.birlikte</key>
+		<string>Birlikte App Store Manual</string>
+	</dict>
 
 	<!-- Yükleme sonrası App Store Connect'te sembolleşmiş kilitlenme
 	     raporları için. -->
