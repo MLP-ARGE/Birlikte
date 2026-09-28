@@ -142,18 +142,21 @@ jobs:
 
       - name: Arşivle
         working-directory: ios
-        env:
-          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
+          # Elle imzalama: sertifika ve profil keychain'de hazır, Xcode'un
+          # Apple'a gitmesine gerek yok.
+          #
+          # -allowProvisioningUpdates BİLEREK kaldırıldı. Bırakıldığında Xcode
+          # kendine bir GELİŞTİRME sertifikası üretmeye çalışıyordu ve hesap
+          # sertifika kotasına dayandığı için reddedildi:
+          #   "Choose a certificate to revoke. Your account has reached the
+          #    maximum number of certificates."
+          # Arşivin buna hiç ihtiyacı yok; imza ayarları Release yapılandırmasında
+          # (project.pbxproj) sabitlendi.
           xcodebuild -workspace Runner.xcworkspace -scheme Runner \
             -configuration Release \
             -archivePath ../build/Runner.xcarchive \
             -destination 'generic/platform=iOS' \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             archive
 
       - name: IPA çıkar
