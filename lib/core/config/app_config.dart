@@ -4,10 +4,10 @@ enum Flavor { dev, staging, prod }
 abstract final class AppConfig {
   static const String appName = 'MLPCARE Birlikte';
 
-  /// Profil ekranının altındaki sürüm satırı.
-  /// TODO(release): pubspec sürümünden `--dart-define` ile beslenmeli;
-  /// şimdilik elle tutuluyor.
-  static const String version = '2.4.1';
+  /// Sürüm burada TUTULMUYOR. Elle yazıldığı sürece pubspec'ten kaçınılmaz
+  /// olarak kayıyordu: uygulama 1.0.0 iken profil ekranı "v2.4.1" gösteriyordu.
+  /// Gerçek değer çalışma anında paket üst verisinden okunuyor —
+  /// bkz. [appVersionProvider].
   static const String buildYear = '2026';
 
   static const Flavor flavor = Flavor.dev;

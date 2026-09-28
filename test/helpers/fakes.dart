@@ -1,3 +1,4 @@
+import 'package:birlikte/core/config/app_version_provider.dart';
 import 'package:birlikte/core/supabase/supabase_client_provider.dart';
 import 'package:birlikte/core/theme/app_institutions.dart';
 import 'package:birlikte/features/auth/application/verified_profile_provider.dart';
@@ -293,6 +294,11 @@ testOverrides({
   // loggedIn yerine bu kullanılır.
   bool Function()? sessionCheck,
 }) => [
+  // Sürüm paket üst verisinden okunuyor; testte platform eklentisi yok.
+  // Ezmezsek sağlayıcı boş dizeye düşer ve golden'lar cihaz/ortam farkına
+  // göre değişirdi — sabitliyoruz.
+  appVersionProvider.overrideWith((ref) async => '1.0.0 (1)'),
+
   // Router koruması sessionCheckProvider'ı, widget'lar isLoggedInProvider'ı
   // okuyor; ikisi de aynı sahte duruma bağlanmalı.
   if (sessionCheck != null) ...[

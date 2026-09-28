@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../app/routes.dart';
 import '../../../core/config/app_config.dart';
+import '../../../core/config/app_version_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimens.dart';
 import '../../../core/theme/app_icons.dart';
@@ -169,8 +170,13 @@ class ProfilePage extends ConsumerWidget {
             const SizedBox(height: AppSpacing.s5),
             Center(
               child: Text(
-                '${AppConfig.appName} v${AppConfig.version} '
-                '(${AppConfig.buildYear})',
+                // Sürüm asenkron geliyor; henüz yüklenmediyse yalnızca
+                // uygulama adını gösteriyoruz, satır zıplamasın diye.
+                switch (ref.watch(appVersionProvider)) {
+                  AsyncData(:final value) when value.isNotEmpty =>
+                    '${AppConfig.appName} v$value · ${AppConfig.buildYear}',
+                  _ => '${AppConfig.appName} · ${AppConfig.buildYear}',
+                },
                 style: AppTypography.caption.copyWith(
                   color: AppColors.textTertiary,
                 ),
