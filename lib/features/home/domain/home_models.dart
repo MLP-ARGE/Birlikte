@@ -182,3 +182,35 @@ class FamilyMember {
       .map((w) => w.substring(0, 1).toUpperCase())
       .join();
 }
+
+/// Kullanıcının oluşturduğu kupon (Cüzdanım ekranı).
+class UserCoupon {
+  const UserCoupon({
+    required this.code,
+    required this.brand,
+    required this.title,
+    required this.discountLabel,
+    required this.status,
+    this.expiresAt,
+  });
+
+  final String code;
+  final String brand;
+  final String title;
+  final String discountLabel;
+
+  /// `public.coupon_status`: active | used | expired | cancelled.
+  final String status;
+  final DateTime? expiresAt;
+
+  bool get isActive => status == 'active';
+
+  /// Rozet metni — kullanıcının kuponu ne durumda olduğunu bir bakışta
+  /// anlaması için.
+  String get statusLabel => switch (status) {
+    'used' => 'Kullanıldı',
+    'expired' => 'Süresi doldu',
+    'cancelled' => 'İptal edildi',
+    _ => 'Aktif',
+  };
+}

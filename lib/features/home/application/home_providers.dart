@@ -3,13 +3,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/supabase/supabase_client_provider.dart';
 import '../../../core/theme/app_institutions.dart';
 import '../../campaigns/data/campaign_repository.dart';
+import '../data/home_repository.dart';
 import '../domain/home_models.dart';
 
-/// TODO(api): aşağıdaki provider'ların hepsi Figma'daki örnek içeriği döndürüyor.
-/// Servisler bağlandığında yalnızca gövdeleri değişecek; ekranlar aynı kalacak.
+/// Puan özeti — Supabase `point_balances` görünümünden.
+///
+/// Önceden Figma'daki örnek değeri (2450/2150/300) sabit döndürüyordu.
+/// Kullanıcıya gerçek sanılan uydurma veri göstermek yanlıştı; hareket
+/// yoksa artık sıfır geliyor ve kart kendi boş durumunu gösteriyor.
+final pointsSummaryAsyncProvider = FutureProvider<PointsSummary>((ref) async {
+  ref.watch(authStateProvider);
+  return ref.watch(homeRepositoryProvider).fetchPoints();
+});
 
+/// Ekranların senkron kullandığı görünüm; veri gelene kadar sıfır.
 final pointsSummaryProvider = Provider<PointsSummary>(
-  (ref) => const PointsSummary(total: 2450, usable: 2150, pending: 300),
+  (ref) =>
+      ref.watch(pointsSummaryAsyncProvider).value ??
+      const PointsSummary(total: 0, usable: 0, pending: 0),
 );
 
 /// Tüm kampanyalar — Kampanyalar sekmesinin ana listesi. Diğer bölümler
@@ -124,28 +135,32 @@ final favoriteSlugsProvider = Provider<Set<String>>(
   (ref) => ref.watch(favoriteCampaignIdsProvider).value ?? const {},
 );
 
+/// Açık kan talepleri — Supabase'den. Kayıt yoksa bölüm boş durumunu gösterir.
+final bloodRequestsAsyncProvider =
+    FutureProvider<List<BloodRequest>>((ref) async {
+  ref.watch(authStateProvider);
+  return ref.watch(homeRepositoryProvider).fetchBloodRequests();
+});
+
 final bloodRequestsProvider = Provider<List<BloodRequest>>(
-  (ref) => const [
-    BloodRequest(
-      name: 'A. Demir',
-      bloodType: 'A Rh−',
-      hospital: 'Çam Sakura Şehir Hastanesi',
-      urgent: true,
-    ),
-    BloodRequest(
-      name: 'E. Kaya',
-      bloodType: '0 Rh+',
-      hospital: 'Liv Hospital Ulus',
-    ),
-  ],
+  (ref) => ref.watch(bloodRequestsAsyncProvider).value ?? const [],
 );
 
-/// Aile üyeleri ve kontenjan (Figma'da "2/3").
+/// Kullanıcının kuponları — Cüzdanım ekranı.
+final couponsAsyncProvider = FutureProvider<List<UserCoupon>>((ref) async {
+  ref.watch(authStateProvider);
+  return ref.watch(homeRepositoryProvider).fetchCoupons();
+});
+
+/// Kullanıcının yakınları — Supabase'den.
+final familyMembersAsyncProvider =
+    FutureProvider<List<FamilyMember>>((ref) async {
+  ref.watch(authStateProvider);
+  return ref.watch(homeRepositoryProvider).fetchFamilyMembers();
+});
+
 final familyMembersProvider = Provider<List<FamilyMember>>(
-  (ref) => const [
-    FamilyMember(name: 'Emre Yılmaz', relation: 'Eş'),
-    FamilyMember(name: 'Can Yılmaz', relation: 'Çocuk'),
-  ],
+  (ref) => ref.watch(familyMembersAsyncProvider).value ?? const [],
 );
 
 /// Eklenebilecek azami yakın sayısı.

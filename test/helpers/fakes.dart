@@ -299,6 +299,38 @@ testOverrides({
   // göre değişirdi — sabitliyoruz.
   appVersionProvider.overrideWith((ref) async => '1.0.0 (1)'),
 
+  // Ana sayfa ve Cüzdanım bölümleri artık Supabase'den besleniyor. Testte ağ
+  // yok; ezmezsek sağlayıcılar hata verir ve Riverpod yeniden deneme
+  // zamanlayıcısı kurup "A Timer is still pending" ile testleri düşürür.
+  //
+  // Örnek içerik bilerek dolu: goldenlar bölümlerin dolu hâlini de
+  // doğrulamalı, boş hâli ayrıca test edilebilir.
+  pointsSummaryAsyncProvider.overrideWith(
+    (ref) async => const PointsSummary(total: 2450, usable: 2150, pending: 300),
+  ),
+  bloodRequestsAsyncProvider.overrideWith(
+    (ref) async => const [
+      BloodRequest(
+        name: 'A. Demir',
+        bloodType: 'A Rh−',
+        hospital: 'Çam Sakura Şehir Hastanesi',
+        urgent: true,
+      ),
+      BloodRequest(
+        name: 'E. Kaya',
+        bloodType: '0 Rh+',
+        hospital: 'Liv Hospital Ulus',
+      ),
+    ],
+  ),
+  familyMembersAsyncProvider.overrideWith(
+    (ref) async => const [
+      FamilyMember(name: 'Emre Yılmaz', relation: 'Eş'),
+      FamilyMember(name: 'Can Yılmaz', relation: 'Çocuk'),
+    ],
+  ),
+  couponsAsyncProvider.overrideWith((ref) async => const <UserCoupon>[]),
+
   // Router koruması sessionCheckProvider'ı, widget'lar isLoggedInProvider'ı
   // okuyor; ikisi de aynı sahte duruma bağlanmalı.
   if (sessionCheck != null) ...[

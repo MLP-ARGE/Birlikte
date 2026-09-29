@@ -47,6 +47,19 @@ class AilemSection extends StatelessWidget {
           ),
           child: Column(
             children: [
+              if (members.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.s5,
+                    vertical: AppSpacing.s6,
+                  ),
+                  child: Text(
+                    'Henüz yakın eklenmedi.',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
               for (final (i, member) in members.indexed) ...[
                 if (i > 0) const _RowDivider(),
                 _MemberRow(

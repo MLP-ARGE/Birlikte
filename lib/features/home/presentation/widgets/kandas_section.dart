@@ -40,6 +40,10 @@ class KandasSection extends StatelessWidget {
           ),
           child: Column(
             children: [
+              // Açık talep yoksa boş kutu çizmek yerine durumu söylüyoruz.
+              if (requests.isEmpty) const _EmptyRow(
+                text: 'Şu anda açık kan talebi yok.',
+              ),
               for (final (i, request) in requests.indexed) ...[
                 if (i > 0)
                   const Divider(
@@ -209,6 +213,29 @@ class _SupportButton extends StatelessWidget {
               color: AppColors.textPrimary,
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bölümün boş hâli — veri gelmediğinde kenarlıklı boş bir kutu kalmasın.
+class _EmptyRow extends StatelessWidget {
+  const _EmptyRow({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.s5,
+        vertical: AppSpacing.s6,
+      ),
+      child: Text(
+        text,
+        style: AppTypography.bodySmall.copyWith(
+          color: AppColors.textSecondary,
         ),
       ),
     );

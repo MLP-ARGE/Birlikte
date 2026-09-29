@@ -10,6 +10,8 @@ import '../features/auth/presentation/verification_error_page.dart';
 import '../features/auth/presentation/welcome_page.dart';
 import '../features/campaigns/presentation/campaign_detail_page.dart';
 import '../features/campaigns/presentation/campaigns_list_page.dart';
+import '../features/kandas/presentation/kandas_page.dart';
+import '../features/wallet/presentation/wallet_page.dart';
 import '../features/home/presentation/home_page.dart';
 import '../features/profile/presentation/profile_page.dart';
 import '../shared/widgets/app_shell.dart';
@@ -152,6 +154,8 @@ final routerProvider = Provider<GoRouter>((ref) {
                   builder: (context, state) => switch (tab) {
                     BirlikteTab.home => const HomePage(),
                     BirlikteTab.campaigns => const CampaignsListPage(),
+                    BirlikteTab.wallet => const WalletPage(),
+                    BirlikteTab.kandas => const KandasPage(),
                     BirlikteTab.profile => const ProfilePage(),
                   },
                 ),
