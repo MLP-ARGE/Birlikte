@@ -10,6 +10,18 @@ abstract final class AppConfig {
   /// bkz. [appVersionProvider].
   static const String buildYear = '2026';
 
+  /// Yasal ve destek bağlantıları.
+  ///
+  /// Boş bırakılanlar profil ekranında GÖSTERİLMEZ. Hiçbir şey yapmayan bir
+  /// satır koymaktansa satırı hiç göstermemek doğru: Apple'ın 2.1 kuralı
+  /// çalışmayan öğeleri eksiklik sayıyor.
+  ///
+  /// Gizlilik politikası App Store Connect'te de ZORUNLU bir alan; oraya
+  /// yazılacak adresle burası aynı olmalı.
+  static const String privacyPolicyUrl = '';
+  static const String termsUrl = '';
+  static const String supportUrl = '';
+
   static const Flavor flavor = Flavor.dev;
 
   /// Supabase proje URL'i.

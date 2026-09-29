@@ -13,8 +13,10 @@ enum BirlikteTab {
     icon: AppIcons.ticketPercent,
     route: Routes.campaigns,
   ),
-  wallet(label: 'Cüzdanım', icon: AppIcons.wallet, route: Routes.wallet),
-  kandas(label: 'Kandaş', icon: AppIcons.droplet, route: Routes.kandas),
+  // Cüzdanım ve Kandaş bu sürümde YOK. Tasarımları Figma'da hazır ama
+  // ekranları kurulmadı ve yer tutucu sekmelerle mağazaya çıkmak Apple'ın
+  // 2.1 "App Completeness" kuralına takılıyor. Ekranlar tamamlanınca buraya
+  // geri eklenecekler — rota sabitleri Routes'ta duruyor.
   profile(label: 'Profil', icon: AppIcons.user, route: Routes.profile);
 
   const BirlikteTab({

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -44,19 +45,12 @@ class ProfilePage extends ConsumerWidget {
             AppSpacing.s8,
           ),
           children: [
-            Row(
-              children: [
-                Expanded(child: Text('Profil', style: AppTypography.h1)),
-                _NotificationButton(
-                  onTap: () => _notReady(context, 'Bildirimler'),
-                ),
-              ],
-            ),
+            // Bildirim zili kaldırıldı: bildirim ekranı bu sürümde yok ve
+            // hiçbir şey yapmayan bir düğme bırakmak istemiyoruz.
+            Text('Profil', style: AppTypography.h1),
             const SizedBox(height: AppSpacing.s5),
-            _ProfileCard(
-              profile: profile,
-              onTap: () => _notReady(context, 'Kişisel bilgiler'),
-            ),
+            // Kişisel bilgiler ekranı yok; kart bilgi gösteriyor, tıklanmıyor.
+            _ProfileCard(profile: profile),
             const SizedBox(height: AppSpacing.s4),
             Text(
               // PDKS bölge bilgisi vermiyor; boşken "Sicil No: 147551 · "
@@ -72,99 +66,38 @@ class ProfilePage extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.s7),
 
+            // Bu sürümde YALNIZCA çalışan öğeler gösteriliyor.
+            //
+            // Kişisel bilgiler, Ailem, İlgi alanların, Bildirim tercihleri,
+            // Dil ve Görünüm ekranları henüz kurulmadı; hiçbir şey yapmayan
+            // satırlar Apple'ın 2.1 "App Completeness" kuralına takılıyor.
+            //
+            // Dil ve Görünüm özellikle dikkat istiyor: veritabanında alanları
+            // var ama uygulama ne dil değiştirebiliyor ne de koyu temaya
+            // geçebiliyor. Çalışır görünen ama etkisi olmayan bir ayar,
+            // olmayandan daha kötü.
             SettingsSection(
               title: 'HESABIM',
               children: [
                 SettingsTile(
-                  icon: AppIcons.user,
-                  label: 'Kişisel bilgiler',
-                  onTap: () => _notReady(context, 'Kişisel bilgiler'),
-                ),
-                SettingsTile(
-                  icon: AppIcons.users,
-                  label: 'Ailem',
-                  value: stats.whenOrNull(
-                    data: (s) => '${s.familyCount}/${s.familyCapacity}',
-                  ),
-                  onTap: () => _notReady(context, 'Ailem'),
-                ),
-                SettingsTile(
                   icon: AppIcons.heart,
                   label: 'Favori kampanyalar',
-                  value: stats.whenOrNull(
-                    data: (s) => '${s.favoriteCount}',
-                  ),
+                  value: stats.whenOrNull(data: (s) => '${s.favoriteCount}'),
                   onTap: () => context.go(Routes.campaigns),
                 ),
-                SettingsTile(
-                  icon: AppIcons.star,
-                  label: 'İlgi alanların',
-                  value: stats.whenOrNull(
-                    data: (s) => '${s.interestCount} kategori',
-                  ),
-                  onTap: () => _notReady(context, 'İlgi alanları'),
-                ),
               ],
             ),
             const SizedBox(height: AppSpacing.s6),
 
-            SettingsSection(
-              title: 'UYGULAMA',
-              children: [
-                SettingsTile(
-                  icon: AppIcons.bell,
-                  label: 'Bildirim tercihleri',
-                  onTap: () => _notReady(context, 'Bildirim tercihleri'),
-                ),
-                SettingsTile(
-                  icon: AppIcons.globe,
-                  label: 'Dil',
-                  value: switch (profile.language) {
-                    'en' => 'English',
-                    _ => 'Türkçe',
-                  },
-                  onTap: () => _notReady(context, 'Dil seçimi'),
-                ),
-                SettingsTile(
-                  icon: AppIcons.eye,
-                  label: 'Görünüm',
-                  value: switch (profile.theme) {
-                    'light' => 'Açık',
-                    'dark' => 'Koyu',
-                    _ => 'Sistem',
-                  },
-                  onTap: () => _notReady(context, 'Görünüm'),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.s6),
-
-            SettingsSection(
-              title: 'YASAL VE DESTEK',
-              children: [
-                SettingsTile(
-                  icon: AppIcons.help,
-                  label: 'Yardım ve destek',
-                  onTap: () => _notReady(context, 'Yardım ve destek'),
-                ),
-                SettingsTile(
-                  icon: AppIcons.fileText,
-                  label: 'Sık sorulan sorular',
-                  onTap: () => _notReady(context, 'Sık sorulan sorular'),
-                ),
-                SettingsTile(
-                  icon: AppIcons.shieldAlert,
-                  label: 'KVKK ve açık rıza',
-                  onTap: () => _notReady(context, 'KVKK metni'),
-                ),
-                SettingsTile(
-                  icon: AppIcons.bookOpen,
-                  label: 'Kullanım koşulları',
-                  onTap: () => _notReady(context, 'Kullanım koşulları'),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.s7),
+            // Adresi tanımlı olmayan satır hiç gösterilmiyor; bölümün
+            // tamamı boşalırsa başlığı da çizilmiyor.
+            if (_legalTiles(context).isNotEmpty) ...[
+              SettingsSection(
+                title: 'YASAL VE DESTEK',
+                children: _legalTiles(context),
+              ),
+              const SizedBox(height: AppSpacing.s7),
+            ],
 
             _SignOutButton(onTap: () => _confirmSignOut(context, ref)),
             const SizedBox(height: AppSpacing.s5),
@@ -188,13 +121,41 @@ class ProfilePage extends ConsumerWidget {
     );
   }
 
-  void _notReady(BuildContext context, String what) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text('$what yakında eklenecek.')));
+  /// Çıkış geri alınamaz bir işlem; önce onay soruyoruz.
+  /// Yalnızca adresi tanımlı olan yasal bağlantılar.
+  List<Widget> _legalTiles(BuildContext context) => [
+    if (AppConfig.supportUrl.isNotEmpty)
+      SettingsTile(
+        icon: AppIcons.help,
+        label: 'Yardım ve destek',
+        onTap: () => _openUrl(context, AppConfig.supportUrl),
+      ),
+    if (AppConfig.privacyPolicyUrl.isNotEmpty)
+      SettingsTile(
+        icon: AppIcons.shieldAlert,
+        label: 'KVKK ve gizlilik',
+        onTap: () => _openUrl(context, AppConfig.privacyPolicyUrl),
+      ),
+    if (AppConfig.termsUrl.isNotEmpty)
+      SettingsTile(
+        icon: AppIcons.bookOpen,
+        label: 'Kullanım koşulları',
+        onTap: () => _openUrl(context, AppConfig.termsUrl),
+      ),
+  ];
+
+  /// Bağlantıyı tarayıcıda açar. Açılamazsa kullanıcıya sessiz kalmıyoruz.
+  Future<void> _openUrl(BuildContext context, String url) async {
+    final ok = await launchUrl(
+      Uri.parse(url),
+      mode: LaunchMode.externalApplication,
+    ).catchError((_) => false);
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Bağlantı açılamadı.')));
+    }
   }
 
-  /// Çıkış geri alınamaz bir işlem; önce onay soruyoruz.
   Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -240,106 +201,68 @@ class ProfilePage extends ConsumerWidget {
 
 /// Profil kartı (Figma: avatar + ad + kurum rozeti + departman).
 class _ProfileCard extends StatelessWidget {
-  const _ProfileCard({required this.profile, required this.onTap});
+  const _ProfileCard({required this.profile});
 
   final VerifiedProfile profile;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.all(AppSpacing.s5),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceSubtle,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-        ),
-        child: Row(
-          children: [
-            BirlikteAvatar(
-              name: profile.fullName,
-              imageUrl: profile.photoUrl,
-              size: 56,
-            ),
-            const SizedBox(width: AppSpacing.s4),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.s5),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSubtle,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      child: Row(
+        children: [
+          BirlikteAvatar(
+            name: profile.fullName,
+            imageUrl: profile.photoUrl,
+            size: 56,
+          ),
+          const SizedBox(width: AppSpacing.s4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  profile.fullName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.h4.copyWith(
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.s2),
+                BirlikteInstitutionBadge(
+                  institution: profile.institution,
+                  height: 20,
+                ),
+                const SizedBox(height: AppSpacing.s2),
+                Text(
+                  profile.department,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                if (profile.position case final position?
+                    when position.isNotEmpty) ...[
+                  const SizedBox(height: 2),
                   Text(
-                    profile.fullName,
+                    position,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppTypography.h4.copyWith(
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.s2),
-                  BirlikteInstitutionBadge(
-                    institution: profile.institution,
-                    height: 20,
-                  ),
-                  const SizedBox(height: AppSpacing.s2),
-                  Text(
-                    profile.department,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTypography.bodySmall.copyWith(
+                    style: AppTypography.caption.copyWith(
                       color: AppColors.textSecondary,
                     ),
                   ),
-                  if (profile.position case final position?
-                      when position.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      position,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.caption.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
                 ],
-              ),
-            ),
-            const Icon(
-              AppIcons.chevronRight,
-              size: 20,
-              color: AppColors.textTertiary,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _NotificationButton extends StatelessWidget {
-  const _NotificationButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: 'Bildirimler',
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: const SizedBox.square(
-          dimension: 44,
-          child: Center(
-            child: Icon(
-              AppIcons.bell,
-              size: 24,
-              color: AppColors.iconDefault,
+              ],
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -368,11 +291,7 @@ class _SignOutButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                AppIcons.logOut,
-                size: 20,
-                color: AppColors.textError,
-              ),
+              const Icon(AppIcons.logOut, size: 20, color: AppColors.textError),
               const SizedBox(width: AppSpacing.s3),
               Text(
                 'Çıkış yap',

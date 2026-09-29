@@ -12,7 +12,6 @@ import '../features/campaigns/presentation/campaign_detail_page.dart';
 import '../features/campaigns/presentation/campaigns_list_page.dart';
 import '../features/home/presentation/home_page.dart';
 import '../features/profile/presentation/profile_page.dart';
-import '../shared/pages/coming_soon_page.dart';
 import '../shared/widgets/app_shell.dart';
 import '../shared/widgets/birlikte_bottom_nav.dart';
 import '../features/onboarding/presentation/onboarding_page.dart';
@@ -154,10 +153,6 @@ final routerProvider = Provider<GoRouter>((ref) {
                     BirlikteTab.home => const HomePage(),
                     BirlikteTab.campaigns => const CampaignsListPage(),
                     BirlikteTab.profile => const ProfilePage(),
-                    // Tasarımları Figma'da var; ekranları kurulana kadar
-                    // iskele sayfa, navigasyon çalışır kalsın.
-                    BirlikteTab.wallet ||
-                    BirlikteTab.kandas => ComingSoonPage(tab: tab),
                   },
                 ),
               ],

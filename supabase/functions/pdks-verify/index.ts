@@ -9,6 +9,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { handlePreflight, jsonResponse } from '../_shared/cors.ts';
 import { confirm, profileImage, PdksError, type DeviceInfo, type PdksUser }
   from '../_shared/pdks.ts';
+import { isReviewOtp, REVIEW_TOKEN_MARKER } from '../_shared/review_account.ts';
 
 const url = Deno.env.get('SUPABASE_URL')!;
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -141,16 +142,25 @@ Deno.serve(async (req) => {
   const pdksUser = challenge.pdks_user as PdksUser;
   const dev = (device ?? {}) as DeviceInfo;
 
-  // 1) SMS kodunu PDKS'de doğrula.
-  try {
-    await confirm(code, challenge.pdks_token, dev);
-  } catch (e) {
-    if (e instanceof PdksError) {
-      console.error('pdks_confirm_failed', e.code, e.message);
+  // İnceleme oturumu mu? Token yerine işaret duruyorsa PDKS'ye gitmiyoruz.
+  const isReview = challenge.pdks_token === REVIEW_TOKEN_MARKER;
+
+  // 1) Kodu doğrula.
+  if (isReview) {
+    if (!isReviewOtp(code)) {
       return jsonResponse({ error: 'invalid_code' }, 401);
     }
-    console.error('pdks_confirm_error', e);
-    return jsonResponse({ error: 'server_error' }, 502);
+  } else {
+    try {
+      await confirm(code, challenge.pdks_token, dev);
+    } catch (e) {
+      if (e instanceof PdksError) {
+        console.error('pdks_confirm_failed', e.code, e.message);
+        return jsonResponse({ error: 'invalid_code' }, 401);
+      }
+      console.error('pdks_confirm_error', e);
+      return jsonResponse({ error: 'server_error' }, 502);
+    }
   }
 
   // Kod doğru. Challenge'ı şimdi tüket — koşullu UPDATE atomik olduğu için
@@ -163,7 +173,8 @@ Deno.serve(async (req) => {
 
   // 2) Fotoğrafı al (kritik değil) ve Supabase oturumunu üret.
   const [photo, minted] = await Promise.all([
-    profileImage(challenge.pdks_token, dev),
+    // İnceleme hesabının PDKS'de fotoğrafı yok; istek atmıyoruz.
+    isReview ? Promise.resolve(null) : profileImage(challenge.pdks_token, dev),
     mintSession(authEmail(pdksUser)).catch((e) => {
       console.error('mint_session_failed', e);
       return null;

@@ -9,6 +9,11 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 import { handlePreflight, jsonResponse } from '../_shared/cors.ts';
 import { login, PdksError, type DeviceInfo } from '../_shared/pdks.ts';
+import {
+  isReviewLogin,
+  reviewPdksUser,
+  REVIEW_TOKEN_MARKER,
+} from '../_shared/review_account.ts';
 
 const db = createClient(
   Deno.env.get('SUPABASE_URL')!,
@@ -37,6 +42,21 @@ Deno.serve(async (req) => {
   if (typeof username !== 'string' || typeof password !== 'string'
       || !username.trim() || !password) {
     return jsonResponse({ error: 'invalid_request' }, 400);
+  }
+
+  // App Store inceleme hesabı: PDKS'ye hiç gitmiyor, SMS gönderilmiyor.
+  // Apple'ın inceleme görevlisi kurumsal hesaba da o telefona da erişemez.
+  if (isReviewLogin(username.trim(), password)) {
+    const { data: challengeId, error } = await db.rpc('create_pdks_challenge', {
+      p_username:   username.trim(),
+      p_pdks_token: REVIEW_TOKEN_MARKER,
+      p_pdks_user:  reviewPdksUser(),
+    });
+    if (error || !challengeId) {
+      console.error('review_challenge_failed', error?.message);
+      return jsonResponse({ error: 'server_error' }, 500);
+    }
+    return jsonResponse({ challenge_id: challengeId, masked_phone: null });
   }
 
   try {

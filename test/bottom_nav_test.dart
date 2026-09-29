@@ -39,11 +39,11 @@ void main() {
 
     // Sekme etiketine dokunulduğunda o sekmenin ekranı gelmeli. Branch
     // sırası enum sırasından kayarsa burada yanlış ekran açılır.
+    // Cüzdanım ve Kandaş bu sürümde yok: ekranları kurulmadığı için
+    // mağaza incelemesinden önce navigasyondan kaldırıldılar.
     const beklenen = <String, String>{
       'Kampanyalar': 'Kampanyalar',
       'Profil': 'Profil',
-      'Cüzdanım': 'Bu bölüm henüz hazır değil.',
-      'Kandaş': 'Bu bölüm henüz hazır değil.',
     };
 
     for (final entry in beklenen.entries) {
@@ -90,12 +90,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Sana Özel'), findsNothing);
 
-    // Cüzdanım sekmesine geç (henüz iskele) — bir `pump()` yetmeli,
-    // push/pop animasyonu yok; native tab bar'da olduğu gibi anında sekme
-    // değişir.
-    await tester.tap(find.text('Cüzdanım'));
+    // Profil sekmesine geç — bir `pump()` yetmeli, push/pop animasyonu yok;
+    // native tab bar'da olduğu gibi anında sekme değişir.
+    await tester.tap(find.text('Profil'));
     await tester.pump();
-    expect(find.text('Bu bölüm henüz hazır değil.'), findsOneWidget);
+    expect(find.text('Çıkış yap'), findsOneWidget);
     // Home'un içeriği artık ağaçta olmamalı (IndexedStack diğer dallar
     // gizli tutuyor ama sadece aktif olanı render ediyor değil, hepsi
     // Offstage değil — asıl kontrol scroll korunumu, altta doğrulanıyor).
