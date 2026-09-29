@@ -18,7 +18,18 @@ abstract final class AppConfig {
   ///
   /// Gizlilik politikası App Store Connect'te de ZORUNLU bir alan; oraya
   /// yazılacak adresle burası aynı olmalı.
-  static const String privacyPolicyUrl = '';
+  /// GEÇİCİ: bu, MLPCARE'in MİSAFİR/HASTA aydınlatma metni. Birlikte bir
+  /// çalışan uygulaması ve topladığı veriler farklı (sicil, departman,
+  /// yönetici, PDKS kimliği, profil fotoğrafı, ileride kan grubu) — bunlar
+  /// o metnin kapsamında değil.
+  ///
+  /// App Store Connect erişilebilir bir adres istediği için şimdilik bu
+  /// kullanılıyor. KVKK birimi Birlikte'ye özel aydınlatma metnini
+  /// yayınlayınca burası ve App Store Connect'teki alan güncellenmeli.
+  static const String privacyPolicyUrl =
+      'https://www.medicalpark.com.tr/kvkk';
+
+  /// Henüz yok; boş olduğu için profil ekranında gösterilmiyor.
   static const String termsUrl = '';
   static const String supportUrl = '';
 
