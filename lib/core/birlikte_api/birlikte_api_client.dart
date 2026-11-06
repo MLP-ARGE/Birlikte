@@ -56,8 +56,7 @@ class BirlikteSessionExpiredException implements Exception {
 /// birlikte-api tek backend: kampanya, ilgi alanı, kupon, puan ve kan bağışı
 /// da buradan geliyor — Supabase'e köprü kurmaya gerek yok.
 class BirlikteApiClient {
-  BirlikteApiClient(this._http, this._storage, {void Function()? onSessionExpired})
-      : _onSessionExpired = onSessionExpired;
+  BirlikteApiClient(this._http, this._storage, {this._onSessionExpired});
 
   final http.Client _http;
   final SecureStorageService _storage;
@@ -133,7 +132,7 @@ class BirlikteApiClient {
             'kimlikTipi': kimlikTipi,
             'kimlikNo': kimlikNo,
             'dogumTarihi': dogumTarihi,
-            if (kimlikUlke != null) 'kimlikUlke': kimlikUlke,
+            'kimlikUlke': ?kimlikUlke,
           }),
         )
         .timeout(AppConfig.connectTimeout);
@@ -164,7 +163,7 @@ class BirlikteApiClient {
             'cihazId': cihazId,
             'cihazAdi': cihazAdi,
             'platform': platform,
-            if (surum != null) 'surum': surum,
+            'surum': ?surum,
           }),
         )
         .timeout(AppConfig.connectTimeout);

@@ -85,12 +85,7 @@ class VerifyResult {
 /// Token Edge Function arkasında gizlenmiyor; cihazda (Keychain/
 /// EncryptedPrefs) tutuluyor ve tüm çağrılar doğrudan bu token'la yapılıyor.
 class BirlikteAuthRepository {
-  const BirlikteAuthRepository(
-    this._api,
-    this._device,
-    this._ref, {
-    String? appVersion,
-  }) : _appVersion = appVersion;
+  const BirlikteAuthRepository(this._api, this._device, this._ref, {this._appVersion});
 
   final BirlikteApiClient _api;
   final BirlikteDeviceIdentity? _device;
