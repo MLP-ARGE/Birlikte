@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,10 +8,12 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimens.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../shared/widgets/birlikte_alert_dialog.dart';
 import '../../../shared/widgets/birlikte_button.dart';
 import '../../../shared/widgets/birlikte_info_card.dart';
 import '../../home/application/home_providers.dart';
 import '../../home/domain/home_models.dart';
+import '../data/campaign_repository.dart';
 import 'widgets/coupon_create_sheet.dart';
 
 /// Kampanya detayı (Figma: `campaign-detail` 3:686, `campaign-terms` 3:9005,
@@ -31,6 +34,24 @@ class _CampaignDetailPageState extends ConsumerState<CampaignDetailPage> {
   _Tab _tab = _Tab.details;
 
   static const _heroHeight = 300.0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Ekran nereden açılırsa açılsın (ana sayfa karuseli, liste, derin
+    // bağlantı) bir kez tıklama kaydı düşülüyor; kampanya nesnesinin
+    // yüklenmesini beklemeye gerek yok, yalnızca guid gerekiyor.
+    ref.read(campaignRepositoryProvider).recordClick(widget.campaignId);
+  }
+
+  void _onCouponTap(BuildContext context, Campaign campaign) {
+    final coupon = campaign.kuponum;
+    if (coupon != null) {
+      showExistingCouponDialog(context, coupon);
+    } else {
+      showCouponCreateSheet(context, campaign);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -119,21 +140,23 @@ class _CampaignDetailPageState extends ConsumerState<CampaignDetailPage> {
           ),
         ],
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenH,
-            AppSpacing.s3,
-            AppSpacing.screenH,
-            AppSpacing.s3,
-          ),
-          child: BirlikteButton(
-            label: 'Kupon Oluştur',
-            onPressed: () => showCouponCreateSheet(context, campaign),
-          ),
-        ),
-      ),
+      bottomNavigationBar: (campaign.kuponAlinabilir || campaign.kuponAldim)
+          ? SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.screenH,
+                  AppSpacing.s3,
+                  AppSpacing.screenH,
+                  AppSpacing.s3,
+                ),
+                child: BirlikteButton(
+                  label: campaign.kuponAldim ? 'Kuponunu Gör' : 'Kupon Oluştur',
+                  onPressed: () => _onCouponTap(context, campaign),
+                ),
+              ),
+            )
+          : null,
     );
   }
 }
@@ -234,9 +257,7 @@ class _Hero extends StatelessWidget {
   }
 
   void _shareStub(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Paylaşım yakında eklenecek.')),
-    );
+    showBirlikteAlert(context, title: 'Paylaşım yakında eklenecek.');
   }
 }
 
@@ -489,6 +510,32 @@ class _DetailsTab extends StatelessWidget {
             if (i > 0) const SizedBox(height: AppSpacing.s4),
             _NumberedStep(number: i + 1, text: step),
           ],
+        ],
+        if (campaign.detayUrl case final url? when url.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.s6),
+          GestureDetector(
+            onTap: () => launchUrl(
+              Uri.parse(url),
+              mode: LaunchMode.externalApplication,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  AppIcons.arrowRight,
+                  size: 18,
+                  color: AppColors.textBrand,
+                ),
+                const SizedBox(width: AppSpacing.s2),
+                Text(
+                  'Web\'de görüntüle',
+                  style: AppTypography.labelLarge.copyWith(
+                    color: AppColors.textBrand,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ],
     );
@@ -789,7 +836,7 @@ class _BranchActionPill extends StatelessWidget {
 /// Kaydet, Bildirim; 38 yüksek pill'ler).
 ///
 /// "Değerlendir" ve "Bildirim" için henüz bir akış yok, dokununca bunu
-/// söyleyen bir snackbar gösteriyor — buton görünürde tasarımla birebir,
+/// söyleyen bir diyalog gösteriyor — buton görünürde tasarımla birebir,
 /// arkasındaki özellik ayrı bir iş.
 class _SecondaryActions extends StatelessWidget {
   const _SecondaryActions({
@@ -827,7 +874,7 @@ class _SecondaryActions extends StatelessWidget {
   }
 
   void _stub(BuildContext context, String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    showBirlikteAlert(context, title: message);
   }
 }
 

@@ -35,6 +35,16 @@ abstract final class AppConfig {
 
   static const Flavor flavor = Flavor.dev;
 
+  /// birlikte-api taban adresi.
+  ///
+  /// `--dart-define=BIRLIKTE_API_URL=...` ile geçilir. Varsayılan TEST
+  /// ortamı — üretim adresi geldiğinde CI/CD secret'ı güncellenmeli, kodun
+  /// kendisi değişmemeli (aynı SUPABASE_URL deseni).
+  static const String birlikteApiUrl = String.fromEnvironment(
+    'BIRLIKTE_API_URL',
+    defaultValue: 'https://birliktetest.mlpcare.com',
+  );
+
   /// Supabase proje URL'i.
   ///
   /// `--dart-define=SUPABASE_URL=https://xxx.supabase.co` ile geçilir;

@@ -4,21 +4,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 import '../../../app/routes.dart';
 import '../../../core/assets/app_assets.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimens.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../core/validation/tckn_validator.dart';
+import '../../../shared/widgets/birlikte_alert_dialog.dart';
 import '../../../shared/widgets/birlikte_button.dart';
 import '../../../shared/widgets/birlikte_text_field.dart';
-import '../data/auth_repository.dart';
+import '../data/birlikte_auth_repository.dart';
 import 'sms_verification_page.dart';
 
-/// Giriş ekranı — MLPCARE PDKS kullanıcı adı ve parolasıyla.
+/// Giriş ekranı — MLPCARE Birlikte mobil API'si üzerinden.
 ///
-/// Önceki sürümde telefon/TCKN seçimi vardı; kimlik doğrulama PDKS'ye
-/// taşınınca kurumun kendi kullanıcı adı/parola çiftine geçildi.
+/// Önceki sürümde PDKS kullanıcı adı/parolası vardı; birlikte-api'ye
+/// geçişle kimlik TC kimlik no + doğum tarihi çiftine döndü.
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
@@ -27,54 +30,95 @@ class LoginPage extends ConsumerStatefulWidget {
 }
 
 class _LoginPageState extends ConsumerState<LoginPage> {
-  final _username = TextEditingController();
-  final _password = TextEditingController();
+  final _tcController = TextEditingController();
+  final _dobController = TextEditingController();
   bool _sending = false;
-  String? _error;
 
-  /// Figma `content`: pl/pr 24, pt 32.
   static const _contentTop = 32.0;
   static const _afterLogo = 36.0;
   static const _afterHeading = 28.0;
   static const _bottomInset = 28.0;
 
-  bool get _valid =>
-      _username.text.trim().isNotEmpty && _password.text.isNotEmpty;
+  bool get _tcValid => TcknValidator.isValid(_tcController.text);
+
+  /// gg.aa.yyyy → geçerli bir tarih mi. Gün/ay sınırları gerçek takvime göre
+  /// (örn. 31.02 reddedilir) — `DateTime` kendisi bunu zaten kontrol ediyor.
+  DateTime? get _birthDate {
+    final digits = _dobController.text.replaceAll('.', '');
+    if (digits.length != 8) return null;
+    final day = int.tryParse(digits.substring(0, 2));
+    final month = int.tryParse(digits.substring(2, 4));
+    final year = int.tryParse(digits.substring(4, 8));
+    if (day == null || month == null || year == null) return null;
+    final date = DateTime(year, month, day);
+    if (date.day != day || date.month != month || date.year != year) {
+      return null;
+    }
+    final now = DateTime.now();
+    if (year < now.year - 100 || date.isAfter(now)) return null;
+    return date;
+  }
+
+  bool get _valid => _tcValid && _birthDate != null;
 
   Future<void> _submit() async {
     if (_sending || !_valid) return;
-    // Klavyeyi kapat: yanıt beklenirken ekranın tamamı görünsün.
     FocusScope.of(context).unfocus();
-    setState(() {
-      _sending = true;
-      _error = null;
-    });
+    setState(() => _sending = true);
+
+    final kimlikNo = _tcController.text;
+    final birthDate = _birthDate!;
+    // API yyyy-MM-dd bekliyor (saat dilimsiz tarih alanları için belgeli
+    // kural).
+    final dogumTarihi = DateFormat('yyyy-MM-dd').format(birthDate);
 
     try {
-      final challenge = await ref.read(authRepositoryProvider).requestOtp(
-        username: _username.text.trim(),
-        password: _password.text,
-      );
+      final challenge = await ref
+          .read(birlikteAuthRepositoryProvider)
+          .requestOtp(kimlikNo: kimlikNo, dogumTarihi: dogumTarihi);
 
       if (!mounted) return;
       unawaited(
         context.push(
           Routes.smsVerification,
           extra: SmsVerificationArgs(
-            challengeId: challenge.challengeId,
-            maskedPhone: challenge.maskedPhone,
+            smsGuid: challenge.smsGuid,
+            gecerlilikSaniye: challenge.gecerlilikSaniye,
+            // TC no + doğum tarihi parola kadar hassas değil; "yeni kod al"
+            // bu ikisini yeniden göndermek için bellekte tutuluyor. Diske
+            // hiç yazılmıyor.
+            kimlikNo: kimlikNo,
+            dogumTarihi: dogumTarihi,
           ),
         ),
       );
     } on AuthException catch (e) {
       if (!mounted) return;
-      setState(() => _error = switch (e.failure) {
-        AuthFailure.invalidCredentials =>
-          'Kullanıcı adı veya parola hatalı.',
-        AuthFailure.branchNotMapped =>
-          'Hesabın henüz tanımlanmamış. Lütfen İK ile iletişime geç.',
-        _ => 'Bağlantı kurulamadı. Lütfen tekrar dene.',
-      });
+      if (e.failure == AuthFailure.missingInfo) {
+        // SMS hiç gönderilmedi; tekrar denemenin anlamı yok — bilgi kurum
+        // tarafında düzelmeli.
+        await showBirlikteAlert(
+          context,
+          title: 'Giriş yapılamıyor',
+          message: e.message?.isNotEmpty == true
+              ? e.message!
+              : 'Kaydınızda eksik bilgi var. Giriş yapabilmek için lütfen '
+                    'kurumunuzla (İnsan Kaynakları / öğrenci işleri) '
+                    'iletişime geçin.',
+        );
+        return;
+      }
+      await showBirlikteAlert(
+        context,
+        title: 'Giriş yapılamadı',
+        message: switch (e.failure) {
+          AuthFailure.invalidCredentials =>
+            e.message?.isNotEmpty == true
+                ? e.message!
+                : 'TC kimlik no veya doğum tarihi hatalı.',
+          _ => 'Bağlantı kurulamadı. Lütfen tekrar dene.',
+        },
+      );
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -82,8 +126,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   void dispose() {
-    _username.dispose();
-    _password.dispose();
+    _tcController.dispose();
+    _dobController.dispose();
     super.dispose();
   }
 
@@ -119,29 +163,41 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ),
                     const SizedBox(height: _afterHeading),
                     BirlikteTextField(
-                      controller: _username,
-                      label: 'Kullanıcı adı',
+                      controller: _tcController,
+                      label: 'TC Kimlik No',
                       required: true,
-                      hint: 'ad.soyad',
-                      helper: 'Kurum hesabınla aynı kullanıcı adı.',
-                      keyboardType: TextInputType.text,
+                      hint: '___________',
+                      helper: _tcController.text.isEmpty || _tcValid
+                          ? 'Kurumda kayıtlı TC kimlik numaranı gir.'
+                          : null,
+                      errorText: _tcController.text.isNotEmpty && !_tcValid
+                          ? 'Geçersiz TC kimlik no.'
+                          : null,
+                      keyboardType: TextInputType.number,
                       textInputAction: TextInputAction.next,
                       inputFormatters: [
-                        // Kullanıcı adında boşluk yok; otomatik büyük harf
-                        // düzeltmesinin bıraktığı boşlukları da eliyoruz.
-                        FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(11),
                       ],
-                      onChanged: (_) => setState(() => _error = null),
+                      onChanged: (_) => setState(() {}),
                     ),
                     const SizedBox(height: AppSpacing.s5),
                     BirlikteTextField(
-                      controller: _password,
-                      label: 'Parola',
+                      controller: _dobController,
+                      label: 'Doğum Tarihi',
                       required: true,
-                      obscureText: true,
+                      hint: 'gg.aa.yyyy',
+                      helper: 'Örn. 15.03.1990',
+                      keyboardType: TextInputType.number,
                       textInputAction: TextInputAction.done,
-                      onChanged: (_) => setState(() => _error = null),
-                      onSubmitted: (_) => _submit(),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        _BirthDateFormatter(),
+                      ],
+                      onChanged: (_) => setState(() {}),
+                      onSubmitted: (_) {
+                        if (_valid) _submit();
+                      },
                     ),
                   ],
                 ),
@@ -164,15 +220,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       color: AppColors.textSecondary,
                     ),
                   ),
-                  if (_error case final error?) ...[
-                    const SizedBox(height: AppSpacing.s3),
-                    Text(
-                      error,
-                      style: AppTypography.caption.copyWith(
-                        color: AppColors.textError,
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: AppSpacing.s5),
                   BirlikteButton(
                     label: 'Devam',
@@ -185,6 +232,32 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// `gg.aa.yyyy` biçimlendirici — kullanıcı yalnızca rakam yazar, noktalar
+/// otomatik eklenir.
+class _BirthDateFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    var digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.length > 8) digits = digits.substring(0, 8);
+    if (digits.isEmpty) return const TextEditingValue();
+
+    final buffer = StringBuffer();
+    for (var i = 0; i < digits.length; i++) {
+      if (i == 2 || i == 4) buffer.write('.');
+      buffer.write(digits[i]);
+    }
+
+    final text = buffer.toString();
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
     );
   }
 }

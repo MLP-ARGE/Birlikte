@@ -30,21 +30,29 @@ class PromoOffer {
   final String? campaignId;
 }
 
-/// Kampanya kategorisi (Figma: `Chip / Category` — `chips-row` 445:10135).
-enum CampaignCategory {
-  foodDrink('Yeme & İçme'),
-  shopping('Alışveriş'),
-  health('Sağlık'),
-  education('Eğitim'),
-  automotive('Otomotiv'),
-  travel('Seyahat'),
-  fuel('Akaryakıt'),
-  pets('Evcil Hayvan'),
-  event('Etkinlik');
+/// Kampanyanın eşleştiği ilgi alanı (Figma: `Chip / Category` —
+/// `chips-row` 445:10135).
+///
+/// birlikte-api'den geliyor: sabit bir enum değil, kataloğun kendisi
+/// `GET /api/ilgi-alanlari`'den (bkz. `InterestCategoryItem`) çekiliyor; bu
+/// sınıf yalnızca bir kampanyanın HANGİ ilgi alanlarıyla eşleştiğini taşıyor.
+/// Bir kampanya birden fazla ilgi alanıyla eşleşebilir — tek bir kategoriye
+/// ait değil.
+class InterestTag {
+  const InterestTag({
+    required this.id,
+    required this.kod,
+    required this.ad,
+    this.eslesen = false,
+  });
 
-  const CampaignCategory(this.label);
+  final int id;
+  final String kod;
+  final String ad;
 
-  final String label;
+  /// Bu ilgi alanı, oturum sahibinin seçtiği ilgi alanlarıyla eşleşiyor mu —
+  /// "sana özel" sıralamasında öne alınma ölçütü.
+  final bool eslesen;
 }
 
 /// Kampanyanın geçerli olduğu şube/kampüs (Figma: `branch-card`,
@@ -77,33 +85,33 @@ class CampaignBranch {
 class Campaign {
   const Campaign({
     required this.id,
-    this.remoteId,
     required this.brand,
     required this.title,
     required this.discountLabel,
     required this.daysLeft,
-    required this.category,
+    this.ilgiAlanlari = const [],
     this.institution,
     this.pointsCost,
     this.imageUrl,
-    this.favorite = false,
     this.brandType,
     this.description,
     this.validity,
+    this.detayUrl,
     this.tags = const [],
     this.steps = const [],
     this.whoQualifies = const [],
     this.rules = const [],
     this.cancellationNote,
     this.branches = const [],
+    this.kuponAlinabilir = true,
+    this.puanBedeli = 0,
+    this.kuponAldim = false,
+    this.kuponum,
   });
 
-  /// Uygulama içi kimlik: okunur `slug` (rota adresinde görünür).
+  /// birlikte-api `kampanyaGuid` — tek kimlik, hem adreslemede hem kupon/
+  /// tıklama yazma isteklerinde kullanılıyor.
   final String id;
-
-  /// Veritabanındaki uuid. Yazma işlemleri (favori, kupon) bunu kullanır;
-  /// sabit demo verisinde null olabilir.
-  final String? remoteId;
   final String brand;
   final String title;
 
@@ -111,41 +119,90 @@ class Campaign {
   /// metin olarak gösterilir.
   final String discountLabel;
   final int daysLeft;
-  final CampaignCategory category;
 
-  /// null ise kampanya tüm kurumlara açık.
+  /// Kampanyanın eşleştiği ilgi alanları — tek bir sabit kategori değil,
+  /// birden fazla olabilir (bkz. [InterestTag]).
+  final List<InterestTag> ilgiAlanlari;
+
+  /// birlikte-api kampanya başına kurum bilgisi vermiyor (kurum/kayıt tipi/
+  /// cinsiyet kuralları zaten sunucuda uygulanıyor); bu alan hep null —
+  /// kart ve detay bunu "tüm kurumlara özel" olarak gösteriyor.
   final Institution? institution;
 
-  /// Kampanyanın puan karşılığı; null ise puan etiketi gösterilmez.
+  /// Kampanyanın puan karşılığı; 0/ücretsizse null — puan etiketi yalnızca
+  /// gerçek bir bedel varsa gösterilir.
   final int? pointsCost;
   final String? imageUrl;
 
-  /// Seed veride varsayılan durum; gerçek zamanlı durum için favori
-  /// provider'ına bakılmalı (bkz. `favoriteCampaignIdsProvider`).
-  final bool favorite;
-
-  /// Detay ekranı marka satırının alt metni, örn. "Eğitim Kurumu".
+  /// Detay ekranı marka satırının alt metni. birlikte-api şu an bunu
+  /// sağlamıyor; her zaman null.
   final String? brandType;
   final String? description;
 
   /// Örn. "1 Eylül 2026 — 31 Ocak 2027".
   final String? validity;
+
+  /// Kampanyanın web sayfası — varsa detay sekmesinde bir bağlantı olarak
+  /// gösterilir.
+  final String? detayUrl;
+
+  /// birlikte-api'de karşılığı yok; her zaman boş.
   final List<String> tags;
 
-  /// "Nasıl kullanılır?" adımları.
+  /// "Nasıl kullanılır?" adımları. birlikte-api'de karşılığı yok; her zaman
+  /// boş.
   final List<String> steps;
 
-  /// "Kimler yararlanabilir?" listesi.
+  /// "Kimler yararlanabilir?" listesi. birlikte-api'de karşılığı yok; her
+  /// zaman boş.
   final List<String> whoQualifies;
 
-  /// "Kampanya koşulları" listesi.
+  /// "Kampanya koşulları" listesi. birlikte-api'de karşılığı yok; her zaman
+  /// boş.
   final List<String> rules;
   final String? cancellationNote;
+
+  /// birlikte-api'de karşılığı yok; her zaman boş.
   final List<CampaignBranch> branches;
+
+  /// Bu kampanyadan kupon alınabilir mi (kampanyada kupon yoksa, sabit kupon
+  /// kodu girilmemişse ya da kota dolmuşsa false).
+  final bool kuponAlinabilir;
+
+  /// Kuponun kaç puana alındığı; ücretsizse 0.
+  final int puanBedeli;
+
+  /// Oturum sahibi bu kampanyadan kupon almış mı.
+  final bool kuponAldim;
+
+  /// Yalnızca detayda dolu gelir — [kuponAldim] true ise alınan kupon.
+  final CampaignCoupon? kuponum;
 
   /// Detay ekranında "Koşullar" sekmesini göstermeye yeten içerik var mı.
   bool get hasTermsDetail =>
       whoQualifies.isNotEmpty || rules.isNotEmpty || cancellationNote != null;
+}
+
+/// Bir kampanyadan alınan kupon (Figma: `coupon-success_Main` 3:834 ve
+/// kampanya detayının "kuponum" bilgisi).
+///
+/// Cüzdanım ekranındaki [UserCoupon]'dan farklı: burada marka/başlık/indirim
+/// zaten kampanyanın kendisinden biliniyor, API yalnızca kod/durum/geçerlilik
+/// döndürüyor.
+class CampaignCoupon {
+  const CampaignCoupon({required this.code, required this.status, this.expiresAt});
+
+  final String code;
+
+  /// Yalnızca `SURESI_DOLDU` belgelendi; diğer durumlar olduğu gibi
+  /// gösteriliyor.
+  final String status;
+  final DateTime? expiresAt;
+
+  bool get isExpired => status == 'SURESI_DOLDU';
+
+  String get statusLabel =>
+      isExpired ? 'Süresi doldu' : (status == 'AKTIF' ? 'Aktif' : status);
 }
 
 /// Kan bağışı talebi (Figma: `request-row` 205:437).

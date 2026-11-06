@@ -3,24 +3,29 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../app/routes.dart';
+import '../../../core/app_config/app_open_tracker.dart';
+import '../../../core/push/push_notification_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimens.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../shared/widgets/birlikte_campaign_card.dart';
 import '../../../shared/widgets/birlikte_section_header.dart';
 import '../../auth/application/verified_profile_provider.dart';
+import '../../auth/data/profile_repository.dart';
 import '../application/home_providers.dart';
 import '../domain/home_models.dart';
 import 'widgets/ailem_section.dart';
+import 'widgets/app_update_prompt.dart';
 import 'widgets/home_header.dart';
 import 'widgets/kandas_section.dart';
+import 'widgets/missing_info_sheet.dart';
 import 'widgets/points_card.dart';
 import 'widgets/promo_carousel.dart';
 import 'widgets/quick_tiles.dart';
 
 /// Ana sayfa (Figma: `home-page` 199:298).
 ///
-/// Bölümler: hızlı erişim, puan kartı, "Sana Özel", "Yakında Sona Erecek",
+/// Bölümler: hızlı erişim, puan kartı, "Sana Özel", "Kampanyalar",
 /// "Kan İhtiyacı Olanlar", "Ailem". Alt navigasyon 5 sekme.
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
@@ -36,6 +41,22 @@ class HomePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Giriş yapıldıktan sonra cinsiyet/ad/soyad eksikse bir kez bilgi
+    // sheet'i gösterilir — giriş engellenmez, bu yalnızca bir hatırlatma.
+    // Yeni kullanıcı zaten WelcomePage'de görür; bu, Welcome'ı atlayan
+    // dönen kullanıcılar için bir yedek (ikisi aynı bayrağı paylaşıyor,
+    // iki kez gösterilmiyor).
+    maybeShowMissingInfoSheet(context, ref, ref.watch(profileProvider).value);
+    // Aynı gerekçeyle: bildirim izni/push token senkronizasyonu da Welcome'ı
+    // atlayan dönen kullanıcılar için burada bir kez tetiklenir.
+    ensurePushTokenSynced(ref);
+    // Splash'ta tespit edilen ÖNERİLEN güncelleme/duyuru (varsa) burada bir
+    // kez gösterilir — bakım/ZORUNLU güncelleme splash'ın kendi ekranları.
+    maybeShowAppNotice(context, ref);
+    // Aynı gerekçeyle: soğuk başlangıç açılış kaydı (`POST /api/me/acilis`)
+    // da Welcome'ı atlayan dönen kullanıcılar için burada bir kez tetiklenir.
+    ensureAppOpenRecorded(ref);
+
     final profile = ref.watch(verifiedProfileProvider);
     final points = ref.watch(pointsSummaryProvider);
     final offers = ref.watch(promoOffersProvider);
@@ -117,7 +138,7 @@ class HomePage extends ConsumerWidget {
                   const SizedBox(height: _sectionGap),
                   inset(
                     BirlikteSectionHeader(
-                      title: 'Yakında Sona Erecek',
+                      title: 'Kampanyalar',
                       actionLabel: 'Tümünü Gör',
                       onAction: () => context.go(Routes.campaigns),
                     ),
@@ -147,7 +168,7 @@ class HomePage extends ConsumerWidget {
   }
 }
 
-/// "Yakında Sona Erecek" karuseli (Figma: `card-carousel` 201:237 — gap 12).
+/// "Kampanyalar" karuseli (Figma: `card-carousel` 201:237 — gap 12).
 class _CampaignCarousel extends StatelessWidget {
   const _CampaignCarousel({
     required this.campaigns,

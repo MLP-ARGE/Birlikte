@@ -3,6 +3,7 @@
 // (scroll konumu) korur.
 import 'package:birlikte/app/app.dart';
 import 'package:birlikte/app/router.dart';
+import 'package:birlikte/shared/widgets/birlikte_bottom_nav.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,6 +42,10 @@ void main() {
     // sırası enum sırasından kayarsa burada yanlış ekran açılır.
     // Cüzdanım ve Kandaş artık gerçek ekranlar: verileri Supabase'den
     // geliyor ve kayıt yoksa boş durumlarını gösteriyorlar.
+    //
+    // Etiket `find.text` ile alt navigasyon DIŞINDA da eşleşebilir (ör.
+    // "Kampanyalar" artık ana sayfadaki bölüm başlığıyla da aynı) — bu
+    // yüzden dokunuşu alt navigasyonun içiyle sınırlıyoruz.
     const beklenen = <String, String>{
       'Kampanyalar': 'Kampanyalar',
       'Cüzdanım': 'Kuponlarım',
@@ -49,7 +54,12 @@ void main() {
     };
 
     for (final entry in beklenen.entries) {
-      await tester.tap(find.text(entry.key));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(BirlikteBottomNav),
+          matching: find.text(entry.key),
+        ),
+      );
       await tester.pumpAndSettle();
       expect(
         find.text(entry.value),

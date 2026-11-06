@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/app_config/app_open_tracker.dart';
 import '../core/config/app_config.dart';
 import '../core/theme/app_theme.dart';
 import 'router.dart';
@@ -12,6 +13,9 @@ class BirlikteApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+    // Uygulama ön plana her döndüğünde `POST /api/me/acilis` çağırır —
+    // provider'ı burada bir kez canlı tutmak yeterli (bkz. `app_open_tracker.dart`).
+    ref.watch(appOpenLifecycleProvider);
 
     return MaterialApp.router(
       title: AppConfig.appName,

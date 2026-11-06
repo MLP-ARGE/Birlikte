@@ -1,5 +1,6 @@
 // Profil ekranındaki çıkış akışı: onay diyaloğu, iptal ve gerçek çıkış.
 import 'package:birlikte/app/router.dart';
+import 'package:birlikte/core/birlikte_api/birlikte_session_provider.dart';
 import 'package:birlikte/app/routes.dart';
 import 'package:birlikte/core/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -30,7 +31,7 @@ void main() {
       overrides: testOverrides(loggedIn: null),
     );
     addTearDown(container.dispose);
-    container.read(fakeSessionProvider.notifier).set(value: true);
+    container.read(birlikteSessionProvider.notifier).set(value: true);
 
     final router = container.read(routerProvider)..go(Routes.profile);
 
@@ -73,7 +74,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Depo oturumu kapatmış ve login'e yönlenmiş olmalı.
-    expect(container.read(fakeSessionProvider), isFalse);
+    expect(container.read(birlikteSessionProvider), isFalse);
     expect(router.state.matchedLocation, Routes.login);
   });
 }

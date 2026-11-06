@@ -34,10 +34,8 @@ class BirlikteCampaignCard extends StatelessWidget {
   /// 198.
   final double imageHeight;
 
-  /// Verilmezse `campaign.favorite` seed değeri kullanılır. Favori durumu
-  /// canlı bir provider'dan geliyorsa (bkz. `favoriteCampaignIdsProvider`)
-  /// çağıran taraf bunu buradan geçirmeli — aksi halde kart, kampanya
-  /// nesnesi yeniden oluşturulmadan güncellenmez.
+  /// Favori durumu `favoriteCampaignIdsProvider`'dan geliyor; çağıran taraf
+  /// bunu buradan geçirmeli — aksi halde kart, favori değişince güncellenmez.
   final bool? isFavorite;
 
   static const _favoriteSize = 36.0;
@@ -81,7 +79,7 @@ class BirlikteCampaignCard extends StatelessWidget {
                           top: AppSpacing.s4,
                           right: AppSpacing.s4,
                           child: _FavoriteButton(
-                            active: isFavorite ?? campaign.favorite,
+                            active: isFavorite ?? false,
                             onTap: onFavoriteTap,
                           ),
                         ),

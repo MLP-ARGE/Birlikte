@@ -1,106 +1,78 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/supabase/supabase_client_provider.dart';
+import '../../../core/birlikte_api/birlikte_api_client.dart';
+import '../../../core/birlikte_api/birlikte_session_provider.dart';
 import '../../../core/theme/app_institutions.dart';
 import '../domain/verified_profile.dart';
 
-/// Profil okuma/yazma.
+/// Profil okuma — birlikte-api `GET /api/me` üzerinden.
 ///
-/// RLS sayesinde sorgularda `where profile_id = ...` yazmaya gerek yok;
-/// veritabanı zaten yalnızca oturum sahibinin satırını döndürüyor.
+/// Yanıt tek bir nesne değil, kişinin tüm aktif kayıtlarının (çalışan/
+/// öğrenci/yakın, `kayitTipi` ile ayrılır) bir DİZİSİ; uygulama şimdilik tek
+/// bir profil gösterdiğinden çalışan kaydı varsa o, yoksa ilk kayıt alınıyor.
 class ProfileRepository {
-  const ProfileRepository(this._client);
+  const ProfileRepository(this._api);
 
-  final SupabaseClient _client;
+  final BirlikteApiClient _api;
 
   Future<VerifiedProfile?> fetch() async {
-    final rows = await _client
-        .from('profiles')
-        .select('full_name, employee_no, institution_id, department, '
-            'region, facility, avatar_path, language, theme, '
-            'position, email, manager_name, person_type, hired_at')
-        .limit(1);
-
+    // Kampanyalar ayrıca `campaignsAsyncProvider` üzerinden çekiliyor; burada
+    // ihtiyaç duyulmuyor, istek gövdesini küçük tutmak için 0 isteniyor.
+    final rows = (await _api.me(kampanyaSayisi: 0)).cast<Map<String, dynamic>>();
     if (rows.isEmpty) return null;
-    final row = rows.first;
-    return _fromRow(row, await _avatarUrl(row['avatar_path'] as String?));
+    final row = rows.firstWhere(
+      (r) => r['kayitTipi'] == 'CALISAN',
+      orElse: () => rows.first,
+    );
+    return _fromRow(row);
   }
 
-  /// Avatar bucket'ı özel (çalışan fotoğrafı kişisel veri), o yüzden
-  /// doğrudan URL yok — kısa ömürlü imzalı bağlantı üretiyoruz. RLS
-  /// yalnızca kullanıcının kendi dosyasına izin veriyor.
-  ///
-  /// Fotoğraf çekilemezse profil yine yüklenir; avatar baş harflere düşer.
-  Future<String?> _avatarUrl(String? path) async {
-    if (path == null || path.isEmpty) return null;
-    try {
-      return await _client.storage
-          .from('avatars')
-          .createSignedUrl(path, _avatarUrlTtl.inSeconds);
-    } catch (_) {
-      return null;
-    }
-  }
+  /// Eksik bilgilerden kullanıcının kendisi yalnızca cinsiyeti
+  /// tamamlayabiliyor (ad/soyad kurum kaydından düzeltilir).
+  Future<void> completeGender(String cinsiyet) =>
+      _api.completeMissingInfo(cinsiyet: cinsiyet);
 
-  /// İmzalı bağlantı ömrü. Oturum boyunca yeniden üretmeye gerek kalmasın
-  /// diye uzun tutuluyor; fotoğraf zaten değişmiyor.
-  static const _avatarUrlTtl = Duration(hours: 6);
-
-  Future<void> updateAppearance({String? language, String? theme}) async {
-    final userId = _client.auth.currentUser?.id;
-    if (userId == null) return;
-
-    await _client.from('profiles').update({
-      'language': ?language,
-      'theme': ?theme,
-    }).eq('id', userId);
-  }
-
-  static VerifiedProfile _fromRow(Map<String, dynamic> row, String? avatarUrl) {
+  static VerifiedProfile _fromRow(Map<String, dynamic> row) {
+    final ilgiAlanlari = row['ilgiAlanlari'] as List<dynamic>? ?? const [];
     return VerifiedProfile(
-      fullName: row['full_name'] as String,
-      employeeNo: row['employee_no'] as String,
-      institution: _institutionFromId(row['institution_id'] as int),
-      department: (row['department'] as String?) ?? '',
-      region: (row['region'] as String?) ?? '',
-      facility: (row['facility'] as String?) ?? '',
-      // Bordro eşleşme tarihi profil tablosunda tutulmuyor; kurum onay
-      // ekranı bunu ayrıca çekiyor.
+      fullName: '${(row['ad'] as String?) ?? ''} ${(row['soyad'] as String?) ?? ''}'
+          .trim(),
+      institution: _institutionFromKurumKodu(row['kurumKodu'] as String?),
+      // birlikte-api bölge kavramı vermiyor; departman/şube ile yetiniyoruz.
+      region: '',
+      department: (row['departman'] as String?) ?? '',
+      facility: (row['subeAdi'] as String?) ?? '',
+      // birlikte-api sicil numarası vermiyor.
+      employeeNo: null,
+      // Eşleşme tarihi ayrıca tutulmuyor; profil her çekildiğinde "şimdi"
+      // olarak gösteriliyor (PDKS döneminden kalan aynı yaklaşım).
       matchedAt: DateTime.now(),
-      photoUrl: avatarUrl,
-      position: row['position'] as String?,
-      email: row['email'] as String?,
-      managerName: row['manager_name'] as String?,
-      personType: row['person_type'] as String?,
-      hiredAt: DateTime.tryParse((row['hired_at'] as String?) ?? ''),
-      language: (row['language'] as String?) ?? 'tr',
-      theme: (row['theme'] as String?) ?? 'system',
+      position: row['unvan'] as String?,
+      email: row['eposta'] as String?,
+      personType: row['kayitTipi'] as String?,
+      interestCount: ilgiAlanlari.length,
+      missingInfo: (row['eksikBilgiler'] as List<dynamic>? ?? const [])
+          .cast<String>(),
     );
   }
 
-  /// `public.institutions.id` → uygulamadaki enum.
-  ///
-  /// Veritabanındaki id'ler migration'da sabit (1..4) ve enum sırası ile
-  /// eşleşiyor; yine de açıkça eşliyoruz ki sıralama değişirse sessizce
-  /// yanlış kurum gösterilmesin.
-  static Institution _institutionFromId(int id) => switch (id) {
-    1 => Institution.medicalPark,
-    2 => Institution.livHospital,
-    3 => Institution.livKoleji,
-    4 => Institution.istinyeUniversitesi,
+  /// Yalnızca "MLP" (Medical Park/MLP Care) doğrulandı; Liv Hospital, Liv
+  /// Koleji ve İstinye Üniversitesi'nin kurumKodu karşılığı henüz
+  /// paylaşılmadı. Bilinmeyen bir kod rozetin rengini/logosunu etkiler ama
+  /// uygulamayı kilitlemez — Medical Park'a düşer.
+  static Institution _institutionFromKurumKodu(String? kod) => switch (kod) {
+    'MLP' => Institution.medicalPark,
     _ => Institution.medicalPark,
   };
 }
 
 final profileRepositoryProvider = Provider<ProfileRepository>(
-  (ref) => ProfileRepository(ref.watch(supabaseProvider)),
+  (ref) => ProfileRepository(ref.watch(birlikteApiClientProvider)),
 );
 
 /// Oturum sahibinin profili. Giriş/çıkışta kendini yeniler.
 final profileProvider = FutureProvider<VerifiedProfile?>((ref) async {
-  ref.watch(authStateProvider);
-  final userId = ref.watch(currentUserIdProvider);
-  if (userId == null) return null;
+  final loggedIn = ref.watch(birlikteSessionProvider);
+  if (!loggedIn) return null;
   return ref.watch(profileRepositoryProvider).fetch();
 });

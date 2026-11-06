@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/auth/presentation/communication_consent_page.dart';
 import '../features/auth/presentation/institution_match_page.dart';
 import '../features/auth/presentation/interest_selection_page.dart';
 import '../features/auth/presentation/login_page.dart';
@@ -13,14 +14,18 @@ import '../features/campaigns/presentation/campaigns_list_page.dart';
 import '../features/kandas/presentation/kandas_page.dart';
 import '../features/wallet/presentation/wallet_page.dart';
 import '../features/home/presentation/home_page.dart';
+import '../features/profile/presentation/communication_preferences_page.dart';
 import '../features/profile/presentation/profile_page.dart';
 import '../shared/widgets/app_shell.dart';
 import '../shared/widgets/birlikte_bottom_nav.dart';
 import '../features/onboarding/presentation/onboarding_page.dart';
+import '../core/app_config/app_config_repository.dart';
+import '../features/splash/presentation/force_update_page.dart';
+import '../features/splash/presentation/maintenance_page.dart';
 import '../features/splash/presentation/splash_page.dart';
 import '../core/theme/app_dimens.dart';
 import '../core/theme/app_typography.dart';
-import '../core/supabase/supabase_client_provider.dart';
+import '../core/birlikte_api/birlikte_session_provider.dart';
 import 'routes.dart';
 
 /// Uygulamanın rota tablosu.
@@ -32,11 +37,13 @@ import 'routes.dart';
 /// Doğrulama başarısız olursa `verification-error` devreye girer.
 final routerProvider = Provider<GoRouter>((ref) {
   // Oturum değiştikçe yönlendirme yeniden değerlendirilsin.
-  final auth = ref.watch(supabaseProvider).auth;
   final refresh = ValueNotifier<int>(0);
-  final sub = auth.onAuthStateChange.listen((_) => refresh.value++);
+  final sub = ref.listen<bool>(
+    birlikteSessionProvider,
+    (_, _) => refresh.value++,
+  );
   ref.onDispose(() {
-    sub.cancel();
+    sub.close();
     refresh.dispose();
   });
 
@@ -48,12 +55,13 @@ final routerProvider = Provider<GoRouter>((ref) {
     // Oturumsuz kullanıcı korumalı ekranlara giremez; oturumlu kullanıcı
     // giriş ekranlarında takılı kalmaz.
     redirect: (context, state) {
-      // Taze okuma: bkz. sessionCheckProvider açıklaması.
-      final loggedIn = ref.read(sessionCheckProvider)();
+      final loggedIn = ref.read(birlikteSessionProvider);
       final location = state.matchedLocation;
 
       const publicRoutes = {
         Routes.splash,
+        Routes.maintenance,
+        Routes.forceUpdate,
         Routes.onboarding,
         Routes.login,
         Routes.smsVerification,
@@ -81,6 +89,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SplashPage(),
       ),
       GoRoute(
+        path: Routes.maintenance,
+        name: 'maintenance',
+        builder: (context, state) =>
+            MaintenancePage(message: state.extra as String?),
+      ),
+      GoRoute(
+        path: Routes.forceUpdate,
+        name: 'force-update',
+        builder: (context, state) =>
+            ForceUpdatePage(info: state.extra as GuncellemeBilgisi?),
+      ),
+      GoRoute(
         path: Routes.onboarding,
         name: 'onboarding',
         builder: (context, state) => const OnboardingPage(),
@@ -97,6 +117,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => SmsVerificationPage(
           args: state.extra as SmsVerificationArgs,
         ),
+      ),
+      GoRoute(
+        path: Routes.communicationConsent,
+        name: 'communication-consent',
+        builder: (context, state) => const CommunicationConsentPage(),
       ),
       GoRoute(
         path: Routes.verificationError,
@@ -131,6 +156,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => CampaignDetailPage(
           campaignId: state.pathParameters['id']!,
         ),
+      ),
+      GoRoute(
+        path: Routes.communicationPreferences,
+        name: 'communication-preferences',
+        builder: (context, state) => const CommunicationPreferencesPage(),
       ),
       // Alt navigasyonun 5 sekmesi — her biri kendi Navigator'ına sahip bir
       // "branch". Sekmeler arası geçişte push/pop animasyonu oynamaz ve her

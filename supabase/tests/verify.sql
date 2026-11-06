@@ -271,5 +271,33 @@ select pg_temp.check('şube: doğrulanmış olan listede görünmüyor',
   (select count(*) from public.pdks_unmapped_branches where branch_code = 202),
   0::bigint);
 
+-- birlikte-api profil bağlama. Aynı desen: eşlenmemiş kurumKodu girişi
+-- ENGELLEMEMELİ, varsayılana düşüp kendini listeye yazmalı.
+insert into auth.users (id) values ('55555555-5555-5555-5555-555555555555');
+
+select pg_temp.check('birlikte: doğrulanmış kurumKodu (MLP) kullanılıyor',
+  (select institution_id from private.link_birlikte_profile(
+     '55555555-5555-5555-5555-555555555555', 42, 'Test', 'Kullanıcı',
+     'test@mlpcare.com', 'MLP', 'MLP Care', 'MER', 'MLPCARE ARGE',
+     'MLPCARE ARGE', 'Test Unvan', 'CALISAN', null)),
+  1::smallint);
+
+insert into auth.users (id) values ('66666666-6666-6666-6666-666666666666');
+
+select pg_temp.check('birlikte: eşlenmemiş kurumKodu ile giriş çalışıyor',
+  (select institution_id from private.link_birlikte_profile(
+     '66666666-6666-6666-6666-666666666666', 43, 'Deneme', 'Liv',
+     'liv@mlpcare.com', 'XLIV', 'Bilinmeyen Kurum', 'ULS', 'Liv Ulus',
+     'Departman', 'Unvan', 'CALISAN', 'K')),
+  1::smallint);
+
+select pg_temp.check('birlikte: eşlenmemiş kurumKodu listeye düştü',
+  (select count(*) from public.birlikte_unmapped_kurumlar where kurum_kodu = 'XLIV'),
+  1::bigint);
+
+select pg_temp.check('birlikte: doğrulanmış kurumKodu listede görünmüyor',
+  (select count(*) from public.birlikte_unmapped_kurumlar where kurum_kodu = 'MLP'),
+  0::bigint);
+
 \echo ''
 \echo 'TUM KONTROLLER GECTI'

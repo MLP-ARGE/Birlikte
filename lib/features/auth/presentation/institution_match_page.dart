@@ -127,7 +127,8 @@ class _MatchCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final institution = profile.institution;
     final rows = <(String, String)>[
-      ('Çalışan no', profile.employeeNo),
+      if (profile.employeeNo case final no? when no.isNotEmpty)
+        ('Çalışan no', no),
       ('Departman', profile.department),
       (
         'Eşleşme tarihi',

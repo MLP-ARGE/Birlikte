@@ -43,24 +43,25 @@ void main() {
     await advance();
     expect(find.text('Giriş yap'), findsOneWidget);
 
-    // Devam, kullanıcı adı ve parola dolana kadar pasif.
+    // Devam, TC kimlik no ve doğum tarihi dolana kadar pasif.
     final fields = find.byType(TextField);
-    await tester.enterText(fields.at(0), FakeAuthRepository.validUsername);
-    await tester.enterText(fields.at(1), FakeAuthRepository.validPassword);
+    await tester.enterText(fields.at(0), FakeBirlikteAuthRepository.validTc);
+    // Ekranda gg.aa.yyyy giriliyor; formatlayıcı noktaları kendisi ekliyor.
+    await tester.enterText(fields.at(1), '20041994');
     await advance();
 
     await tester.tap(find.text('Devam'));
     await advance();
     expect(find.text('Doğrulama kodu'), findsOneWidget);
     expect(
-      find.text('53******48 numarasına gönderdiğimiz 6 haneli kodu gir.'),
+      find.text('Kayıtlı numarana gönderdiğimiz 6 haneli kodu gir.'),
       findsOneWidget,
     );
 
     // 6 hane girilince otomatik doğrulanır.
     await tester.enterText(
       find.byType(TextField).first,
-      FakeAuthRepository.validCode,
+      FakeBirlikteAuthRepository.validCode,
     );
     await advance();
     expect(find.textContaining('Hoş geldin'), findsOneWidget);
@@ -71,6 +72,11 @@ void main() {
     expect(find.textContaining('Hoş geldin'), findsOneWidget);
 
     await tester.tap(find.textContaining('okudum, kabul ediyorum'));
+    await advance();
+    // Kutu işaretlenince KVKK metnini okumak isteyenler için bir popup
+    // açılıyor — kapatmadan devam edilemez.
+    expect(find.text('KVKK Aydınlatma Metni'), findsOneWidget);
+    await tester.tap(find.text('Kapat'));
     await advance();
     await tester.tap(find.text('Uygulamaya Başla'));
     await advance();

@@ -34,26 +34,32 @@ class CampaignsListPage extends ConsumerStatefulWidget {
 
 class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
   final _searchController = TextEditingController();
-  CampaignCategory? _category;
+  InterestTag? _category;
 
-  /// Kampanyası olan kategoriler, enum sırasına sadık kalarak.
+  /// Kampanyası olan ilgi alanları, ilk görülme sırasıyla.
   ///
   /// Kataloğa göre hesaplanıyor; boş kategoriyi filtrede göstermek
-  /// kullanıcıyı doğrudan "sonuç yok" ekranına götürüyordu.
-  List<CampaignCategory> _availableCategories = const [];
+  /// kullanıcıyı doğrudan "sonuç yok" ekranına götürüyordu. Bir kampanya
+  /// birden fazla ilgi alanıyla eşleşebildiği için küme `id`'ye göre
+  /// tekilleştiriliyor.
+  List<InterestTag> _availableCategories = const [];
 
   void _recomputeCategories(List<Campaign> all) {
-    final present = all.map((c) => c.category).toSet();
-    final next = [
-      for (final c in CampaignCategory.values)
-        if (present.contains(c)) c,
-    ];
+    final seenIds = <int>{};
+    final next = <InterestTag>[];
+    for (final c in all) {
+      for (final tag in c.ilgiAlanlari) {
+        if (seenIds.add(tag.id)) next.add(tag);
+      }
+    }
     if (next.length != _availableCategories.length ||
-        !next.every(_availableCategories.contains)) {
+        !next.every((t) => _availableCategories.any((a) => a.id == t.id))) {
       _availableCategories = next;
       // Seçili kategori katalogdan düştüyse filtreyi temizle, aksi halde
       // kullanıcı görünmeyen bir filtreyle boş listede kilitli kalır.
-      if (_category != null && !present.contains(_category)) _category = null;
+      if (_category != null && !seenIds.contains(_category!.id)) {
+        _category = null;
+      }
     }
   }
   _SortOption _sort = _SortOption.recommended;
@@ -73,7 +79,8 @@ class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
   List<Campaign> _filterAndSort(List<Campaign> all) {
     final query = _query.trim().toLowerCase();
     var result = all.where((c) {
-      final matchesCategory = _category == null || c.category == _category;
+      final matchesCategory = _category == null ||
+          c.ilgiAlanlari.any((t) => t.id == _category!.id);
       final matchesQuery =
           query.isEmpty ||
           c.brand.toLowerCase().contains(query) ||
@@ -110,7 +117,7 @@ class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
   Widget build(BuildContext context) {
     final all = ref.watch(campaignsProvider);
     final favorites = ref.watch(favoriteSlugsProvider);
-    // build içinde: katalog Supabase'den asenkron geliyor, ilk kare boş
+    // build içinde: katalog birlikte-api'den asenkron geliyor, ilk kare boş
     // listeyle çiziliyor. setState çağırmıyoruz — zaten bu kare çiziliyor.
     _recomputeCategories(all);
     final filtered = _filterAndSort(all);
@@ -325,10 +332,10 @@ class _CategoryChips extends StatelessWidget {
   /// Enum'un tamamını göstermiyoruz: katalog değiştikçe bazı kategoriler
   /// boşalıyor (Sağlık, Otomotiv, Akaryakıt, Evcil Hayvan şu an öyle) ve
   /// boş bir filtreye dokunmak kullanıcıyı "sonuç yok" ekranına düşürüyor.
-  final List<CampaignCategory> categories;
+  final List<InterestTag> categories;
 
-  final CampaignCategory? selected;
-  final ValueChanged<CampaignCategory?> onSelected;
+  final InterestTag? selected;
+  final ValueChanged<InterestTag?> onSelected;
 
   static const _height = 48.0;
 
@@ -354,8 +361,8 @@ class _CategoryChips extends StatelessWidget {
           for (final category in categories) ...[
             const SizedBox(width: AppSpacing.s3),
             BirlikteChip(
-              label: category.label,
-              selected: selected == category,
+              label: category.ad,
+              selected: selected?.id == category.id,
               onTap: () => onSelected(category),
             ),
           ],
@@ -480,9 +487,9 @@ class _CategoryFilterSheet extends StatelessWidget {
   });
 
   /// Yatay çubukla aynı küme — iki yerde farklı liste göstermek kafa karıştırır.
-  final List<CampaignCategory> categories;
-  final CampaignCategory? selected;
-  final ValueChanged<CampaignCategory?> onSelected;
+  final List<InterestTag> categories;
+  final InterestTag? selected;
+  final ValueChanged<InterestTag?> onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -516,8 +523,8 @@ class _CategoryFilterSheet extends StatelessWidget {
               ),
               for (final category in categories)
                 _FilterRow(
-                  label: category.label,
-                  selected: selected == category,
+                  label: category.ad,
+                  selected: selected?.id == category.id,
                   onTap: () => onSelected(category),
                 ),
             ],

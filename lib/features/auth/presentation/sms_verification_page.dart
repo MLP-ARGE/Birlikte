@@ -9,22 +9,35 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimens.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../shared/widgets/birlikte_alert_dialog.dart';
 import '../../../shared/widgets/birlikte_app_bar.dart';
 import '../../../shared/widgets/birlikte_button.dart';
 import '../../../shared/widgets/birlikte_otp_field.dart';
-import '../data/auth_repository.dart';
+import '../data/birlikte_auth_repository.dart';
+import 'communication_consent_page.dart';
 
 /// Login ekranından SMS ekranına taşınan bilgi.
 class SmsVerificationArgs {
-  const SmsVerificationArgs({required this.challengeId, this.maskedPhone});
+  const SmsVerificationArgs({
+    required this.smsGuid,
+    required this.gecerlilikSaniye,
+    required this.kimlikNo,
+    required this.dogumTarihi,
+  });
 
-  /// Sunucudaki giriş denemesinin kimliği (bkz. AuthRepository.OtpChallenge).
-  ///
-  /// PDKS token'ı cihaza inmiyor; ikinci adım bu kimlikle sürüyor.
-  final String challengeId;
+  /// Sunucudaki SMS denemesinin kimliği.
+  final String smsGuid;
 
-  /// PDKS'den gelen maskeli numara, örn. "54******89". Vermezse null.
-  final String? maskedPhone;
+  /// Kodun geçerlilik süresi (sn) — sayaç buradan başlıyor.
+  final int gecerlilikSaniye;
+
+  /// "Yeni kod al" için bellekte tutuluyor. TC kimlik no + doğum tarihi
+  /// parola kadar hassas değil (ikisi de zaten kimlik belgesinde yazılı),
+  /// bu yüzden PDKS'deki gibi "baştan gir" zorunluluğu yok — gerçek bir
+  /// yeniden gönderim yapılabiliyor. Diske hiç yazılmıyor, yalnızca bu
+  /// ekranın ömrü boyunca bellekte duruyor.
+  final String kimlikNo;
+  final String dogumTarihi;
 }
 
 /// SMS doğrulama (Figma: `sms-verification` 3:127 boş, 199:783 dolu).
@@ -39,46 +52,64 @@ class SmsVerificationPage extends ConsumerStatefulWidget {
 }
 
 class _SmsVerificationPageState extends ConsumerState<SmsVerificationPage> {
-  /// Figma'daki sayaç `00:45` ile başlıyor.
-  static const _resendCooldown = Duration(seconds: 45);
   static const _codeLength = 6;
 
-  /// Figma `content`: pt 8. Başlık ile OTP arası 32, OTP ile sayaç arası 24.
   static const _contentTop = 8.0;
   static const _afterHeading = 32.0;
   static const _afterOtp = 24.0;
   static const _bottomInset = 28.0;
 
+  /// Sunucudan gelen `smsGuid` sabit değil: "yeni kod al" yeni bir guid
+  /// üretir, bu yüzden state'te tutulup güncelleniyor.
+  late String _smsGuid = widget.args.smsGuid;
+
   Timer? _timer;
-  Duration _remaining = _resendCooldown;
+  late Duration _remaining = Duration(seconds: widget.args.gecerlilikSaniye);
   String _code = '';
   bool _verifying = false;
-  String? _error;
+  bool _resending = false;
 
-  bool get _canResend => _remaining == Duration.zero;
+  bool get _canResend =>
+      _remaining == Duration.zero && !_resending && !_verifying;
   bool get _complete => _code.length == _codeLength;
 
   @override
   void initState() {
     super.initState();
-    _startCountdown();
+    _startCountdown(Duration(seconds: widget.args.gecerlilikSaniye));
   }
 
-  /// Yeni kod için giriş ekranına döner.
-  ///
-  /// Buradan doğrudan yeniden gönderemiyoruz: PDKS yeni SMS'i ancak
-  /// kullanıcı adı + parola ile üretiyor (`/loginwithsms`), parola ise
-  /// bilinçli olarak cihazda saklanmıyor. Sessizce başarısız olan bir
-  /// "tekrar gönder" yerine kullanıcıyı ne yapması gerektiğine
-  /// yönlendiriyoruz.
-  void _resend() {
-    if (!context.canPop()) return;
-    context.pop();
+  /// Yeni kod ister. TC no + doğum tarihi bellekte tutulduğu için gerçek bir
+  /// yeniden gönderim — PDKS'deki "giriş ekranına dön" geçici çözümünün
+  /// aksine.
+  Future<void> _resend() async {
+    if (_resending) return;
+    setState(() => _resending = true);
+    try {
+      final challenge = await ref
+          .read(birlikteAuthRepositoryProvider)
+          .requestOtp(
+            kimlikNo: widget.args.kimlikNo,
+            dogumTarihi: widget.args.dogumTarihi,
+          );
+      if (!mounted) return;
+      setState(() => _smsGuid = challenge.smsGuid);
+      _startCountdown(Duration(seconds: challenge.gecerlilikSaniye));
+    } on AuthException {
+      if (!mounted) return;
+      await showBirlikteAlert(
+        context,
+        title: 'Kod gönderilemedi',
+        message: 'Lütfen tekrar dene.',
+      );
+    } finally {
+      if (mounted) setState(() => _resending = false);
+    }
   }
 
-  void _startCountdown() {
+  void _startCountdown(Duration from) {
     _timer?.cancel();
-    setState(() => _remaining = _resendCooldown);
+    setState(() => _remaining = from);
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_remaining <= const Duration(seconds: 1)) {
         timer.cancel();
@@ -95,47 +126,49 @@ class _SmsVerificationPageState extends ConsumerState<SmsVerificationPage> {
     super.dispose();
   }
 
-  /// Kodu doğrular; başarılıysa oturum açılır ve profil bordroya bağlanır.
+  /// Kodu doğrular; başarılıysa Supabase oturumu kurulur ve profil
+  /// doldurulur.
   Future<void> _verify() async {
     if (_verifying) return;
-    setState(() {
-      _verifying = true;
-      _error = null;
-    });
+    setState(() => _verifying = true);
 
     try {
-      await ref.read(authRepositoryProvider).verifyOtp(
-        challengeId: widget.args.challengeId,
-        code: _code,
-      );
+      final result = await ref
+          .read(birlikteAuthRepositoryProvider)
+          .verifyOtp(smsGuid: _smsGuid, code: _code);
       if (!mounted) return;
-      unawaited(context.push(Routes.welcome));
+
+      if (result.kapatilanCihazlar.isNotEmpty) {
+        await showBirlikteAlert(
+          context,
+          title: 'Diğer oturum kapatıldı',
+          message:
+              '${result.kapatilanCihazlar.join(", ")} cihazındaki oturum '
+              'kapatıldı.',
+        );
+        if (!mounted) return;
+      }
+
+      unawaited(continueAfterLoginConsents(context, ref));
     } on AuthException catch (e) {
       if (!mounted) return;
-      setState(() => _error = switch (e.failure) {
-        AuthFailure.invalidCode => 'Kod hatalı veya süresi dolmuş.',
-        // Challenge'ın ömrü doldu: kod doğru olsa bile baştan başlamak
-        // gerekiyor, kullanıcıya ne yapacağını söylüyoruz.
-        AuthFailure.challengeExpired =>
-          'Süre doldu. Lütfen giriş ekranından tekrar dene.',
-        AuthFailure.branchNotMapped =>
-          'Hesabın henüz tanımlanmamış. Lütfen İK ile iletişime geç.',
+      final message = switch (e.failure) {
+        AuthFailure.invalidCode =>
+          e.message?.isNotEmpty == true
+              ? e.message!
+              : 'Kod hatalı veya süresi dolmuş.',
+        AuthFailure.sessionExpired =>
+          'Oturum başka bir cihazdan kapatıldı. Lütfen tekrar giriş yap.',
         _ => 'Bağlantı kurulamadı. Lütfen tekrar dene.',
-      });
+      };
+      await showBirlikteAlert(context, title: 'Doğrulanamadı', message: message);
     } finally {
       if (mounted) setState(() => _verifying = false);
     }
   }
 
-  /// Açıklama metni: maskeleme sunucuda yapılıyor (istemci ham numarayı
-  /// hiç görmüyor), burada yalnızca cümleye yerleştiriliyor.
-  String get _description {
-    final masked = widget.args.maskedPhone;
-    if (masked == null) {
-      return 'Kayıtlı numarana gönderdiğimiz $_codeLength haneli kodu gir.';
-    }
-    return '$masked numarasına gönderdiğimiz $_codeLength haneli kodu gir.';
-  }
+  String get _description =>
+      'Kayıtlı numarana gönderdiğimiz $_codeLength haneli kodu gir.';
 
   @override
   Widget build(BuildContext context) {
@@ -150,8 +183,6 @@ class _SmsVerificationPageState extends ConsumerState<SmsVerificationPage> {
               onClose: () => context.go(Routes.login),
             ),
             Expanded(
-              // Klavye açıldığında bu alan küçülür; içerik kaydırılabilir
-              // olduğu için taşma değil kaydırma olur.
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(
                   AppSpacing.screenH,
@@ -163,7 +194,6 @@ class _SmsVerificationPageState extends ConsumerState<SmsVerificationPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Doğrulama kodu', style: AppTypography.display),
-                    // Figma: heading gap 12.
                     const SizedBox(height: AppSpacing.s4),
                     Text(
                       _description,
@@ -183,23 +213,13 @@ class _SmsVerificationPageState extends ConsumerState<SmsVerificationPage> {
                     const SizedBox(height: _afterOtp),
                     _ResendRow(
                       remaining: _remaining,
+                      busy: _resending,
                       onResend: _canResend ? _resend : null,
                     ),
-                    if (_error case final error?) ...[
-                      const SizedBox(height: AppSpacing.s4),
-                      Text(
-                        error,
-                        style: AppTypography.caption.copyWith(
-                          color: AppColors.textError,
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
             ),
-            // Sabit alt bölüm — kaydırma alanının dışında, klavye açıkken de
-            // her zaman görünür (Figma: safe-area 28).
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 AppSpacing.screenH,
@@ -222,9 +242,14 @@ class _SmsVerificationPageState extends ConsumerState<SmsVerificationPage> {
 
 /// "Yeni kod al" + geri sayım rozeti (Figma: `resend-row` 190:64).
 class _ResendRow extends StatelessWidget {
-  const _ResendRow({required this.remaining, required this.onResend});
+  const _ResendRow({
+    required this.remaining,
+    required this.busy,
+    required this.onResend,
+  });
 
   final Duration remaining;
+  final bool busy;
   final VoidCallback? onResend;
 
   @override
@@ -236,14 +261,14 @@ class _ResendRow extends StatelessWidget {
         GestureDetector(
           onTap: onResend,
           child: Text(
-            'Yeni kod al',
+            busy ? 'Gönderiliyor…' : 'Yeni kod al',
             style: AppTypography.buttonSmall.copyWith(
               color: enabled ? AppColors.textBrand : AppColors.textDisabled,
             ),
           ),
         ),
         const Spacer(),
-        if (!enabled)
+        if (!enabled && !busy)
           Container(
             padding: const EdgeInsets.symmetric(
               horizontal: AppSpacing.s4,
@@ -260,7 +285,6 @@ class _ResendRow extends StatelessWidget {
                   size: 14,
                   color: AppColors.iconSubtle,
                 ),
-                // Figma: rozet içi gap 6.
                 const SizedBox(width: 6),
                 Text(
                   _format(remaining),

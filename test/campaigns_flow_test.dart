@@ -66,10 +66,9 @@ void main() {
   testWidgets('kategori çipi sonuçları filtreler', (tester) async {
     await pumpApp(tester);
 
-    // Kategori çipi yatay kaydırılabilir liste içinde; "Eğitim" başlangıçta
-    // viewport+cache dışında kalabiliyor, önce kaydırıp görünür kılıyoruz.
-    await tester.drag(find.byType(ListView).first, const Offset(-300, 0));
-    await tester.pumpAndSettle();
+    // Kategori çipleri artık kampanyalardaki ilgi alanlarından, ilk görülme
+    // sırasıyla türetiliyor; test fikstüründe "Eğitim" (İstinye) ilk sırada
+    // olduğundan kaydırmaya gerek yok.
     await tester.tap(find.text('Eğitim'));
     await tester.pumpAndSettle();
 

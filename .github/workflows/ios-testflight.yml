@@ -69,10 +69,6 @@ jobs:
           flutter analyze
           flutter test
 
-      - name: CocoaPods
-        working-directory: ios
-        run: pod install
-
       - name: App Store Connect API anahtarını yaz
         env:
           ASC_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}

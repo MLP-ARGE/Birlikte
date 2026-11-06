@@ -1,124 +1,172 @@
+import 'package:birlikte/core/app_config/app_config_repository.dart';
+import 'package:birlikte/core/birlikte_api/birlikte_session_provider.dart';
 import 'package:birlikte/core/config/app_version_provider.dart';
-import 'package:birlikte/core/supabase/supabase_client_provider.dart';
 import 'package:birlikte/core/theme/app_institutions.dart';
 import 'package:birlikte/features/auth/application/verified_profile_provider.dart';
+import 'package:birlikte/features/auth/data/communication_preferences_repository.dart';
+import 'package:birlikte/features/auth/data/interest_repository.dart';
+import 'package:birlikte/features/auth/data/profile_repository.dart';
+import 'package:birlikte/features/auth/domain/interest_category.dart';
 import 'package:birlikte/features/auth/domain/verified_profile.dart';
-import 'package:birlikte/features/auth/data/auth_repository.dart';
+import 'package:birlikte/features/auth/data/birlikte_auth_repository.dart';
 import 'package:birlikte/features/campaigns/data/campaign_repository.dart';
+import 'package:birlikte/features/campaigns/data/favorites_repository.dart';
 import 'package:birlikte/features/home/application/home_providers.dart';
 import 'package:birlikte/features/home/domain/home_models.dart';
 import 'package:birlikte/features/profile/data/profile_stats.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Testlerdeki oturum durumu. Sahte auth deposu doğrulama başarılı olunca
-/// bunu true yapıyor; router koruması da bunu okuyor, böylece uçtan uca
-/// akış testi giriş sonrası ekranlara geçebiliyor.
-final fakeSessionProvider = NotifierProvider<FakeSession, bool>(
-  FakeSession.new,
-);
+/// Testteki [birlikteSessionProvider] üstü — gerçek `build()` SecureStorage'a
+/// (platform kanalı) dokunuyor, testte bu kanal yok. `build()` burada hiç
+/// çağırmadan sabit bir başlangıç değeri veriyor; `.set()` gerçek koddaki
+/// gibi çalışmaya devam ediyor (örn. FakeBirlikteAuthRepository, router
+/// guard testi bunu kullanıyor).
+class _TestBirlikteSession extends BirlikteSessionNotifier {
+  _TestBirlikteSession(this._initial);
 
-class FakeSession extends Notifier<bool> {
+  final bool _initial;
+
   @override
-  bool build() => false;
-
-  void set({required bool value}) => state = value;
+  bool build() => _initial;
 }
 
 /// Ağa çıkmayan giriş akışı.
 ///
-/// Gerçek uçlar (auth-lookup / auth-verify) Edge Function'da; testte
-/// yalnızca sözleşmeleri taklit ediliyor: doğru kod '145823'.
-class FakeAuthRepository implements AuthRepository {
-  FakeAuthRepository(this._ref);
+/// Gerçek uçlar birlikte-api'de (doğrudan çağrılıyor); testte yalnızca
+/// sözleşmeler taklit ediliyor: doğru kod '145823'.
+class FakeBirlikteAuthRepository implements BirlikteAuthRepository {
+  FakeBirlikteAuthRepository(this._ref);
 
   final Ref _ref;
 
   static const validCode = '145823';
 
-  static const validUsername = 'ayse.yilmaz';
-  static const validPassword = 'Gecerli1*';
-  static const challengeId = 'test-challenge-0001';
+  static const validTc = '10000000078';
+  static const validDob = '1994-04-20';
+  static const smsGuid = 'test-smsguid-0001';
 
   @override
   Future<OtpChallenge> requestOtp({
-    required String username,
-    required String password,
+    required String kimlikNo,
+    required String dogumTarihi,
   }) async {
-    if (username != validUsername || password != validPassword) {
+    if (kimlikNo != validTc || dogumTarihi != validDob) {
       throw const AuthException(AuthFailure.invalidCredentials);
     }
-    return const OtpChallenge(
-      challengeId: challengeId,
-      maskedPhone: '53******48',
-    );
+    return const OtpChallenge(smsGuid: smsGuid, gecerlilikSaniye: 180);
   }
 
   @override
-  Future<void> verifyOtp({
-    required String challengeId,
+  Future<VerifyResult> verifyOtp({
+    required String smsGuid,
     required String code,
   }) async {
     if (code != validCode) {
       throw const AuthException(AuthFailure.invalidCode);
     }
-    _ref.read(fakeSessionProvider.notifier).set(value: true);
+    _ref.read(birlikteSessionProvider.notifier).set(value: true);
+    return const VerifyResult(
+      kvkkOnayGerekli: false,
+      kapatilanCihazlar: [],
+    );
   }
 
   @override
   Future<void> signOut() async {
-    _ref.read(fakeSessionProvider.notifier).set(value: false);
+    _ref.read(birlikteSessionProvider.notifier).set(value: false);
   }
+}
+
+/// Ağa çıkmayan açılış kontrolü — `GET /api/app/config`'in testte gerçek
+/// bir çağrıya dönüşmesini engeller (bakım/güncelleme bu feature'ın kendi
+/// testlerinde ayrıca kapsanıyor; burada "bilgi yok, normal akışa devam"
+/// anlamına gelen `null` yeterli).
+class _TestAppConfigRepository implements AppConfigRepository {
+  const _TestAppConfigRepository();
+
+  @override
+  Future<RemoteAppConfig?> fetch() async => null;
+}
+
+/// Ağa çıkmayan iletişim tercihleri — `GET /api/me/iletisim-tercihleri`'in
+/// testte gerçek bir çağrıya dönüşmesini engeller. `sorulmali: false`
+/// yeterli: giriş akışı testleri izin ekranını hiç beklemeden Welcome'a
+/// geçmeli (gerçek uç ulaşılamadığında da akış zaten aynı şekilde devam
+/// ediyor, bkz. `continueAfterLoginConsents`).
+class _TestCommunicationPreferencesRepository
+    implements CommunicationPreferencesRepository {
+  const _TestCommunicationPreferencesRepository();
+
+  @override
+  Future<CommunicationPreferences> fetch() async =>
+      const CommunicationPreferences(sorulmali: false, tercihler: []);
+
+  @override
+  Future<CommunicationPreferences> save(
+    Map<CommunicationChannel, bool> degisenler,
+  ) async => const CommunicationPreferences(sorulmali: false, tercihler: []);
 }
 
 /// Testlerde kullanılan sahte kampanya deposu.
 ///
-/// Ağa çıkmaz, favori değişikliklerini bellekte tutar — böylece favori
-/// akışı (iyimser güncelleme, geri alma) gerçek mantıkla test edilebilir.
+/// Ağa çıkmaz; `campaignsProvider` zaten `testCampaigns`'e sabitlendiği için
+/// `fetchAll`/`fetchDetail` pratikte çağrılmıyor — yalnızca kupon oluşturma
+/// akışının (bkz. `coupon_create_sheet.dart`) ağa çıkmadan test edilebilmesi
+/// için `createCoupon` gerçek bir sahte davranış sergiliyor.
 class FakeCampaignRepository implements CampaignRepository {
-  FakeCampaignRepository({Set<String>? favorites})
-    : _favorites = {...?favorites};
-
-  final Set<String> _favorites;
+  const FakeCampaignRepository();
 
   @override
   Future<List<Campaign>> fetchAll() async => testCampaigns;
 
   @override
-  Future<Campaign?> fetchBySlug(String slug) async =>
-      testCampaigns.where((c) => c.id == slug).firstOrNull;
+  Future<Campaign> fetchDetail(String id) async =>
+      testCampaigns.firstWhere((c) => c.id == id);
 
   @override
-  Future<Set<String>> fetchFavoriteIds() async => {..._favorites};
+  Future<CampaignCoupon> createCoupon(String id) async =>
+      const CampaignCoupon(code: 'BRLKT-TEST1-TEST2', status: 'AKTIF');
 
   @override
-  Future<void> toggleFavorite(String campaignId, {required bool add}) async {
-    final slug = testCampaigns
-        .where((c) => c.remoteId == campaignId)
-        .map((c) => c.id)
-        .firstOrNull;
-    if (slug == null) return;
-    if (add) {
-      _favorites.add(slug);
-    } else {
-      _favorites.remove(slug);
-    }
-  }
+  Future<void> recordClick(String id) async {}
+}
+
+/// Cihaza yazmayan, bellekte tutan favori deposu.
+class _TestFavoritesRepository implements FavoritesRepository {
+  _TestFavoritesRepository(Set<String>? initial) : _ids = {...?initial};
+
+  Set<String> _ids;
 
   @override
-  Future<String> createCoupon(String campaignId) async => 'BRLKT-TEST1-TEST2';
+  Future<Set<String>> fetchIds() async => {..._ids};
+
+  @override
+  Future<void> save(Set<String> ids) async => _ids = {...ids};
+}
+
+/// Ağa çıkmayan ilgi alanı deposu — katalog `interestCatalogProvider`
+/// üzerinden doğrudan sabitleniyor, bu sınıf yalnızca `save()`'in (devam
+/// düğmesi) ağa çıkmadan tamamlanmasını sağlıyor.
+class _TestInterestRepository implements InterestRepository {
+  const _TestInterestRepository();
+
+  @override
+  Future<List<InterestCategoryItem>> fetchCatalog() async => testInterestCatalog;
+
+  @override
+  Future<void> save(List<int> ilgiAlaniIdleri) async {}
 }
 
 /// Golden ve akış testlerinde kullanılan sabit kampanya listesi.
 final testCampaigns = <Campaign>[
   const Campaign(
     id: 'istinye-yuksek-lisans',
-    remoteId: 'c0000000-0000-4000-8000-000000000001',
     brand: 'İstinye Üniversitesi',
     brandType: 'Eğitim Kurumu',
     title: 'Yüksek Lisans Fırsatı %50 İndirimli',
     discountLabel: '%50',
     daysLeft: 45,
-    category: CampaignCategory.education,
+    ilgiAlanlari: [InterestTag(id: 4, kod: 'EGITIM', ad: 'Eğitim')],
     description:
         'MLP Care, Medical Park, Liv Hospital ve Liv Koleji çalışanlarına '
         'İstinye Üniversitesi yüksek lisans programlarında %50 indirim. '
@@ -175,95 +223,97 @@ final testCampaigns = <Campaign>[
   ),
   const Campaign(
     id: 'starbucks-buyuk-boy',
-    remoteId: 'c0000000-0000-4000-8000-000000000002',
     brand: 'Starbucks',
     brandType: 'Yeme & İçme',
     title: "Starbucks'ta Büyük Boy İçeceklerde %25 İndirim",
     discountLabel: '%25',
     daysLeft: 30,
-    category: CampaignCategory.foodDrink,
+    ilgiAlanlari: [InterestTag(id: 1, kod: 'YEME_ICME', ad: 'Yeme & İçme')],
     pointsCost: 750,
   ),
   const Campaign(
     id: 'karcher-ev-bahce',
-    remoteId: 'c0000000-0000-4000-8000-000000000003',
     brand: 'Kärcher Türkiye',
     brandType: 'Ev ve Bahçe Ürünleri',
     title: "MLPCare'e Özel Kärcher Ev ve Bahçe Ürünlerinde %20 Ayrıcalık",
     discountLabel: '%20',
     daysLeft: 24,
-    category: CampaignCategory.shopping,
+    ilgiAlanlari: [InterestTag(id: 2, kod: 'ALISVERIS', ad: 'Alışveriş')],
   ),
   const Campaign(
     id: 'arabam-garaj',
-    remoteId: 'c0000000-0000-4000-8000-000000000004',
     brand: 'arabam.com',
     brandType: 'Garaj Oto Kuaför',
     title: 'arabam Garaj Oto Kuaför Kategorisinde Net 250 TL Ayrıcalık',
     discountLabel: '250 TL',
     daysLeft: 18,
-    category: CampaignCategory.automotive,
+    ilgiAlanlari: [InterestTag(id: 5, kod: 'OTOMOTIV', ad: 'Otomotiv')],
   ),
   const Campaign(
     id: 'liv-koleji-egitim',
-    remoteId: 'c0000000-0000-4000-8000-000000000005',
     brand: 'Liv Koleji',
     brandType: 'Eğitim Kurumu',
     title: "Liv Koleji'nde Eğitim Fırsatı %50 İndirimli",
     discountLabel: '%50',
     daysLeft: 60,
-    category: CampaignCategory.education,
+    ilgiAlanlari: [InterestTag(id: 4, kod: 'EGITIM', ad: 'Eğitim')],
   ),
   const Campaign(
     id: 'mlpcare-psikolog',
-    remoteId: 'c0000000-0000-4000-8000-000000000006',
     brand: 'MLPCare',
     brandType: 'Sağlık & Wellness',
     title: "MLPCare'den Ücretsiz Psikolog Seansı",
     discountLabel: 'Ücretsiz',
     daysLeft: 90,
-    category: CampaignCategory.health,
+    ilgiAlanlari: [InterestTag(id: 3, kod: 'SAGLIK', ad: 'Sağlık')],
   ),
   const Campaign(
     id: 'dod-ikinci-el',
-    remoteId: 'c0000000-0000-4000-8000-00000000000a',
     brand: 'DOD',
     brandType: 'İkinci El Araç Platformu',
     title: "DOD'da İkinci El Araç Alım Satımında Komisyonsuz İşlem",
     discountLabel: 'Komisyonsuz',
     daysLeft: 12,
-    category: CampaignCategory.automotive,
+    ilgiAlanlari: [InterestTag(id: 5, kod: 'OTOMOTIV', ad: 'Otomotiv')],
   ),
   const Campaign(
     id: 'opet-akaryakit',
-    remoteId: 'c0000000-0000-4000-8000-000000000007',
     brand: 'OPET',
     brandType: 'Akaryakıt İstasyonları',
     title: 'OPET İstasyonlarında Akaryakıtta 150 TL İndirim',
     discountLabel: '150 TL',
     daysLeft: 21,
-    category: CampaignCategory.fuel,
+    ilgiAlanlari: [InterestTag(id: 7, kod: 'AKARYAKIT', ad: 'Akaryakıt')],
   ),
   const Campaign(
     id: 'enuygun-seyahat',
-    remoteId: 'c0000000-0000-4000-8000-000000000008',
     brand: 'EnUygun',
     brandType: 'Seyahat & Konaklama',
     title: "EnUygun'da Otel ve Araç Kiralamada %10 İndirim",
     discountLabel: '%10',
     daysLeft: 40,
-    category: CampaignCategory.travel,
+    ilgiAlanlari: [InterestTag(id: 6, kod: 'SEYAHAT', ad: 'Seyahat')],
   ),
   const Campaign(
     id: 'petcity-mama',
-    remoteId: 'c0000000-0000-4000-8000-000000000009',
     brand: 'Petcity',
     brandType: 'Evcil Hayvan',
     title: "Petcity'de Mama ve Aksesuar Alışverişinde %30 İndirim",
     discountLabel: '%30',
     daysLeft: 15,
-    category: CampaignCategory.pets,
+    ilgiAlanlari: [InterestTag(id: 8, kod: 'EVCIL_HAYVAN', ad: 'Evcil Hayvan')],
   ),
+];
+
+/// İlgi alanı seçim ekranının test kataloğu — gerçek 13 kayıtlık kataloğun
+/// yerine, akış testinin dokunduğu üç kategoriyi (Teknoloji, Seyahat,
+/// Sinema) içeren küçük bir sabit küme yeterli.
+final testInterestCatalog = <InterestCategoryItem>[
+  const InterestCategoryItem(id: 1, kod: 'TEKNOLOJI', ad: 'Teknoloji'),
+  const InterestCategoryItem(id: 2, kod: 'SEYAHAT', ad: 'Seyahat'),
+  const InterestCategoryItem(id: 3, kod: 'SINEMA', ad: 'Sinema'),
+  const InterestCategoryItem(id: 4, kod: 'SPOR', ad: 'Spor'),
+  const InterestCategoryItem(id: 5, kod: 'SAGLIK', ad: 'Sağlık'),
 ];
 
 /// Figma'daki örnek profil.
@@ -275,6 +325,7 @@ final testProfile = VerifiedProfile(
   facility: 'Göztepe Hastanesi',
   employeeNo: 'MP-984302',
   matchedAt: DateTime(2026, 7, 8),
+  interestCount: 6,
 );
 
 /// Testlerin ağa çıkmadan çalışmasını sağlayan provider değiştirmeleri.
@@ -283,25 +334,48 @@ final testProfile = VerifiedProfile(
 /// yazılamıyor; `dynamic` liste `ProviderContainer(overrides:)` ile
 /// uyumlu çalışıyor.
 // ignore: strict_top_level_inference, always_declare_return_types
-/// [loggedIn] null verilirse oturum durumu [fakeSessionProvider]'dan
-/// gelir ve test sırasında değişebilir (uçtan uca akış için). Sabit bir
-/// değer verilirse o değere kilitlenir (tek ekran render'ları için).
+/// [loggedIn] null verilirse oturum `false`'tan başlar ama test sırasında
+/// [FakeBirlikteAuthRepository] üzerinden değişebilir (uçtan uca akış
+/// için). Sabit bir değer verilirse o değere kilitlenir (tek ekran
+/// render'ları için).
 // ignore: strict_top_level_inference, always_declare_return_types
 testOverrides({
   Set<String>? favorites,
   bool? loggedIn = true,
-  // Router korumasının okuyacağı taze kontrol; verilirse
-  // loggedIn yerine bu kullanılır.
-  bool Function()? sessionCheck,
-}) => [
+  List<String> missingInfo = const [],
+}) {
+  final profile = missingInfo.isEmpty
+      ? testProfile
+      : VerifiedProfile(
+          fullName: testProfile.fullName,
+          institution: testProfile.institution,
+          region: testProfile.region,
+          department: testProfile.department,
+          facility: testProfile.facility,
+          employeeNo: testProfile.employeeNo,
+          matchedAt: testProfile.matchedAt,
+          interestCount: testProfile.interestCount,
+          missingInfo: missingInfo,
+        );
+  return [
   // Sürüm paket üst verisinden okunuyor; testte platform eklentisi yok.
   // Ezmezsek sağlayıcı boş dizeye düşer ve golden'lar cihaz/ortam farkına
   // göre değişirdi — sabitliyoruz.
   appVersionProvider.overrideWith((ref) async => '1.0.0 (1)'),
+  // Splash'ın açılış kontrolü (`GET /api/app/config`) gerçek ağa/platform
+  // eklentisine (PackageInfo) dokunmasın diye sabit "bilgi yok" fake'i.
+  appConfigRepositoryProvider.overrideWithValue(
+    const _TestAppConfigRepository(),
+  ),
+  communicationPreferencesRepositoryProvider.overrideWithValue(
+    const _TestCommunicationPreferencesRepository(),
+  ),
 
-  // Ana sayfa ve Cüzdanım bölümleri artık Supabase'den besleniyor. Testte ağ
-  // yok; ezmezsek sağlayıcılar hata verir ve Riverpod yeniden deneme
-  // zamanlayıcısı kurup "A Timer is still pending" ile testleri düşürür.
+  // Ana sayfa ve Cüzdanım bölümleri gerçek koşulda birlikte-api'den geliyor
+  // (puan/kupon/kan bağışı uçlarının alan adları henüz doğrulanmadığından
+  // boş/sıfır dönüyor — bkz. `HomeRepository`). Testte ağ yok; ezmezsek
+  // sağlayıcılar hata verir ve Riverpod yeniden deneme zamanlayıcısı kurup
+  // "A Timer is still pending" ile testleri düşürür.
   //
   // Örnek içerik bilerek dolu: goldenlar bölümlerin dolu hâlini de
   // doğrulamalı, boş hâli ayrıca test edilebilir.
@@ -331,31 +405,35 @@ testOverrides({
   ),
   couponsAsyncProvider.overrideWith((ref) async => const <UserCoupon>[]),
 
-  // Router koruması sessionCheckProvider'ı, widget'lar isLoggedInProvider'ı
-  // okuyor; ikisi de aynı sahte duruma bağlanmalı.
-  if (sessionCheck != null) ...[
-    sessionCheckProvider.overrideWithValue(sessionCheck),
-    isLoggedInProvider.overrideWith((ref) => sessionCheck()),
-  ] else if (loggedIn != null) ...[
-    isLoggedInProvider.overrideWithValue(loggedIn),
-    sessionCheckProvider.overrideWithValue(() => loggedIn),
-  ] else ...[
-    isLoggedInProvider.overrideWith((ref) => ref.watch(fakeSessionProvider)),
-    sessionCheckProvider.overrideWith(
-      (ref) => () => ref.read(fakeSessionProvider),
-    ),
-  ],
-  authRepositoryProvider.overrideWith(FakeAuthRepository.new),
-  campaignRepositoryProvider.overrideWithValue(
-    FakeCampaignRepository(favorites: favorites),
+  // Router koruması ve widget'lar artık aynı tek kaynağı (gerçek koddaki
+  // birlikteSessionProvider) okuyor; testte gerçek build()'in SecureStorage'a
+  // (platform kanalı yok) dokunmaması için başlangıç değeri sabitleniyor.
+  // `.notifier.set()` hâlâ çalışıyor — FakeBirlikteAuthRepository ve
+  // router_guard_test bunu kullanıyor.
+  birlikteSessionProvider.overrideWith(
+    () => _TestBirlikteSession(loggedIn ?? false),
   ),
+  birlikteAuthRepositoryProvider.overrideWith(FakeBirlikteAuthRepository.new),
+  campaignRepositoryProvider.overrideWithValue(const FakeCampaignRepository()),
   campaignsProvider.overrideWithValue(testCampaigns),
-  verifiedProfileProvider.overrideWithValue(testProfile),
-  // Profil sayaçları Supabase'e sorgu atıyor; testte sabit veriyle
-  // değiştiriliyor (aksi hâlde engellenen HTTP isteği bekleyen zamanlayıcı
-  // bırakıyor ve test teardown'da patlıyor).
+  // Favoriler artık cihaz-yerel (SharedPreferences); testte platform
+  // kanalına dokunmayan bellek-içi bir depoyla değiştiriliyor.
+  favoritesRepositoryProvider.overrideWithValue(
+    _TestFavoritesRepository(favorites),
+  ),
+  interestCatalogProvider.overrideWith((ref) async => testInterestCatalog),
+  interestRepositoryProvider.overrideWithValue(const _TestInterestRepository()),
+  verifiedProfileProvider.overrideWithValue(profile),
+  // `HomePage`/`WelcomePage` eksik bilgi sheet'i için `profileProvider`'ı
+  // doğrudan okuyor; ezmezsek gerçek birlikte-api'ye çıkmaya çalışıp "Timer
+  // is still pending" ile testi düşürür.
+  profileProvider.overrideWith((ref) async => profile),
+  // Profil sayaçları artık başka provider'lardan türetiliyor (bkz.
+  // `profile_stats.dart`); testte sabit veriyle değiştiriliyor (aksi hâlde
+  // alttaki sağlayıcıların tam zincirini kurmak gerekirdi).
   profileStatsProvider.overrideWith((ref) async => testProfileStats),
-];
+  ];
+}
 
 /// Figma'daki profil sayaçları.
 const testProfileStats = ProfileStats(

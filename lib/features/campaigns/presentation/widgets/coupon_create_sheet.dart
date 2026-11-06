@@ -3,12 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../../core/birlikte_api/birlikte_api_client.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_dimens.dart';
 import '../../../../core/theme/app_icons.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/birlikte_alert_dialog.dart';
 import '../../../../shared/widgets/birlikte_button.dart';
 import '../../../../shared/widgets/birlikte_info_card.dart';
 import '../../../home/domain/home_models.dart';
@@ -16,11 +17,8 @@ import '../../data/campaign_repository.dart';
 
 /// Kupon oluşturma onayı (Figma: `coupon-create-confirm_Main` 3:800).
 ///
-/// Kupon `public.create_coupon()` RPC'si ile sunucuda üretilir: kod,
-/// kontenjan ve kişi başı limit orada uygulanır.
-///
-/// TODO(wallet): üretilen kupon "Kuponlarım" listesinde de görünmeli;
-/// Cüzdanım sekmesi kurulunca oraya bağlanacak.
+/// Kupon kodu `POST /api/kampanyalar/{guid}/kupon` ile sunucuda üretilir;
+/// kontenjan ve puan bakiyesi kuralları orada uygulanıyor.
 Future<void> showCouponCreateSheet(BuildContext context, Campaign campaign) {
   return showModalBottomSheet<void>(
     context: context,
@@ -30,6 +28,17 @@ Future<void> showCouponCreateSheet(BuildContext context, Campaign campaign) {
       borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
     ),
     builder: (sheetContext) => _CouponCreateSheet(campaign: campaign),
+  );
+}
+
+/// Kuponu zaten alınmış bir kampanya için kodu tekrar gösterir.
+Future<void> showExistingCouponDialog(
+  BuildContext context,
+  CampaignCoupon coupon,
+) {
+  return showDialog<void>(
+    context: context,
+    builder: (_) => _CouponSuccessDialog(coupon: coupon),
   );
 }
 
@@ -44,7 +53,6 @@ class _CouponCreateSheet extends ConsumerStatefulWidget {
 
 class _CouponCreateSheetState extends ConsumerState<_CouponCreateSheet> {
   bool _creating = false;
-  String? _error;
 
   Campaign get campaign => widget.campaign;
 
@@ -81,8 +89,11 @@ class _CouponCreateSheetState extends ConsumerState<_CouponCreateSheet> {
             // Figma: başlık-açıklama gap 6.
             const SizedBox(height: 6),
             Text(
-              'Kupon oluşturduğunda kod hemen üretilir ve süre işlemeye '
-              'başlar.',
+              campaign.puanBedeli > 0
+                  ? 'Kupon oluşturduğunda ${campaign.puanBedeli} puan '
+                      'bakiyenden düşülür ve kod hemen üretilir.'
+                  : 'Kupon oluşturduğunda kod hemen üretilir ve süre işlemeye '
+                      'başlar.',
               style: AppTypography.bodyMedium.copyWith(
                 color: AppColors.textSecondary,
               ),
@@ -120,15 +131,6 @@ class _CouponCreateSheetState extends ConsumerState<_CouponCreateSheet> {
                   'süresi dolarsa yeniden oluşturulamaz.',
             ),
             const SizedBox(height: AppSpacing.s6),
-            if (_error case final error?) ...[
-              Text(
-                error,
-                style: AppTypography.bodySmall.copyWith(
-                  color: AppColors.textError,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.s3),
-            ],
             BirlikteButton(
               label: 'Kuponu oluştur',
               isLoading: _creating,
@@ -147,41 +149,54 @@ class _CouponCreateSheetState extends ConsumerState<_CouponCreateSheet> {
   }
 
   Future<void> _confirm() async {
-    final remoteId = campaign.remoteId;
-    if (remoteId == null) {
-      setState(() => _error = 'Bu kampanya için kupon oluşturulamıyor.');
-      return;
-    }
-
-    setState(() {
-      _creating = true;
-      _error = null;
-    });
+    setState(() => _creating = true);
 
     try {
-      final code = await ref
+      final coupon = await ref
           .read(campaignRepositoryProvider)
-          .createCoupon(remoteId);
+          .createCoupon(campaign.id);
 
       if (!mounted) return;
       Navigator.pop(context);
-      unawaited(
-        showDialog<void>(
-          context: context,
-          builder: (_) => _CouponSuccessDialog(code: code),
-        ),
-      );
-    } on PostgrestException catch (e) {
+      unawaited(showExistingCouponDialog(context, coupon));
+    } on BirlikteApiException catch (e) {
       if (!mounted) return;
-      // Sunucu kuralları Türkçe mesajla dönüyor ("Bu kampanyadan zaten
-      // yararlandınız", "Kampanya kontenjanı doldu" gibi) — doğrudan
-      // gösteriyoruz.
-      setState(() => _error = e.message);
+      await showBirlikteAlert(
+        context,
+        title: 'Kupon oluşturulamadı',
+        message: _messageFor(e),
+      );
     } catch (_) {
       if (!mounted) return;
-      setState(() => _error = 'Kupon oluşturulamadı. Lütfen tekrar dene.');
+      await showBirlikteAlert(
+        context,
+        title: 'Kupon oluşturulamadı',
+        message: 'Lütfen tekrar dene.',
+      );
     } finally {
       if (mounted) setState(() => _creating = false);
+    }
+  }
+
+  static String _messageFor(BirlikteApiException e) {
+    switch (e.code) {
+      case 'KUPON_YOK':
+        return 'Bu kampanya için kupon tanımlı değil.';
+      case 'KAMPANYA_BULUNAMADI':
+        return 'Kampanya bulunamadı.';
+      case 'KOTA_DOLDU':
+        return 'Bu kampanyanın kontenjanı doldu.';
+      case 'YETERSIZ_PUAN':
+        final veri = e.veri;
+        final bakiye = veri?['bakiye'];
+        final gereken = veri?['gereken'];
+        return bakiye != null && gereken != null
+            ? 'Puanın yetersiz (bakiye: $bakiye, gereken: $gereken).'
+            : 'Puanın yetersiz.';
+      default:
+        return e.message.isNotEmpty
+            ? e.message
+            : 'Kupon oluşturulamadı. Lütfen tekrar dene.';
     }
   }
 }
@@ -286,19 +301,20 @@ class _RuleRow extends StatelessWidget {
   }
 }
 
-/// Kupon başarıyla oluşturulunca gösterilen kod (Figma: `coupon-success_Main`
-/// 3:834, sadeleştirilmiş — Cüzdanım/Kuponlarım henüz yok).
+/// Kupon başarıyla oluşturulunca (ya da daha önce alınmış bir kuponu tekrar
+/// açarken) gösterilen kod (Figma: `coupon-success_Main` 3:834).
 class _CouponSuccessDialog extends StatelessWidget {
-  const _CouponSuccessDialog({required this.code});
+  const _CouponSuccessDialog({required this.coupon});
 
-  final String code;
+  final CampaignCoupon coupon;
 
   @override
   Widget build(BuildContext context) {
-    final expiry = DateFormat(
-      'd MMMM, HH:mm',
-      'tr_TR',
-    ).format(DateTime.now().add(const Duration(hours: 72)));
+    // Sunucu geçerlilik tarihini vermediyse (eski yanıt şekli) 72 saatlik
+    // kural metniyle tutarlı bir tahmini gösteriyoruz.
+    final expiry = coupon.expiresAt ??
+        DateTime.now().add(const Duration(hours: 72));
+    final expiryLabel = DateFormat('d MMMM, HH:mm', 'tr_TR').format(expiry);
 
     return Dialog(
       backgroundColor: AppColors.surface,
@@ -325,10 +341,15 @@ class _CouponSuccessDialog extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.s5),
-            Text('Kuponun hazır', style: AppTypography.h4),
+            Text(
+              coupon.isExpired ? 'Kuponun' : 'Kuponun hazır',
+              style: AppTypography.h4,
+            ),
             const SizedBox(height: AppSpacing.s2),
             Text(
-              '$expiry\'e kadar geçerli.',
+              coupon.isExpired
+                  ? 'Süresi doldu.'
+                  : '$expiryLabel\'e kadar geçerli.',
               textAlign: TextAlign.center,
               style: AppTypography.bodySmall.copyWith(
                 color: AppColors.textSecondary,
@@ -343,7 +364,7 @@ class _CouponSuccessDialog extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppRadius.md),
               ),
               child: Center(
-                child: Text(code, style: AppTypography.couponCodeLarge),
+                child: Text(coupon.code, style: AppTypography.couponCodeLarge),
               ),
             ),
             const SizedBox(height: AppSpacing.s6),

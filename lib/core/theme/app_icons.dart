@@ -25,6 +25,9 @@ abstract final class AppIcons {
   static const IconData info = LucideIcons.info300;
   static const IconData clock = LucideIcons.clock300;
   static const IconData triangleAlert = LucideIcons.triangleAlert300;
+  static const IconData wrench = LucideIcons.wrench300;
+  static const IconData download = LucideIcons.download300;
+  static const IconData megaphone = LucideIcons.megaphone300;
 
   // Ana sayfa & navigasyon
   static const IconData house = LucideIcons.house300;
@@ -35,6 +38,8 @@ abstract final class AppIcons {
   static const IconData wallet = LucideIcons.wallet300;
   static const IconData user = LucideIcons.user300;
   static const IconData bell = LucideIcons.bell300;
+  static const IconData mail = LucideIcons.mail300;
+  static const IconData messageSquare = LucideIcons.messageSquare300;
   static const IconData heart = LucideIcons.heart300;
   static const IconData plus = LucideIcons.plus300;
   static const IconData gift = LucideIcons.gift300;

@@ -71,8 +71,10 @@ void main() {
     'sms-verification': (
       Routes.smsVerification,
       const SmsVerificationArgs(
-        challengeId: 'test-challenge-0001',
-        maskedPhone: '53******48',
+        smsGuid: 'test-smsguid-0001',
+        gecerlilikSaniye: 180,
+        kimlikNo: '10000000078',
+        dogumTarihi: '1994-04-20',
       ),
       false,
     ),

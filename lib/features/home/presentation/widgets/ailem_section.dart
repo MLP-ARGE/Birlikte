@@ -13,7 +13,6 @@ class AilemSection extends StatelessWidget {
     super.key,
     required this.members,
     required this.capacity,
-    this.onSeeAll,
     this.onMemberTap,
     this.onAddMember,
   });
@@ -22,7 +21,6 @@ class AilemSection extends StatelessWidget {
 
   /// Eklenebilecek azami yakın sayısı — Figma'da "2/3" olarak gösteriliyor.
   final int capacity;
-  final VoidCallback? onSeeAll;
   final ValueChanged<FamilyMember>? onMemberTap;
   final VoidCallback? onAddMember;
 
@@ -33,11 +31,7 @@ class AilemSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        BirlikteSectionHeader(
-          title: 'Ailem',
-          actionLabel: 'Üye ekle',
-          onAction: onSeeAll,
-        ),
+        const BirlikteSectionHeader(title: 'Ailem'),
         const SizedBox(height: 14),
         DecoratedBox(
           decoration: BoxDecoration(

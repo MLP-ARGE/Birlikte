@@ -12,19 +12,20 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimens.dart';
 import '../../../core/theme/app_icons.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../shared/widgets/birlikte_alert_dialog.dart';
 import '../../../shared/widgets/birlikte_avatar.dart';
 import '../../../shared/widgets/birlikte_institution_badge.dart';
 import '../../auth/application/verified_profile_provider.dart';
-import '../../auth/data/auth_repository.dart';
+import '../../auth/data/birlikte_auth_repository.dart';
 import '../../auth/domain/verified_profile.dart';
 import '../data/profile_stats.dart';
 import 'widgets/settings_tile.dart';
 
 /// Profil (Figma: `profile` 3:1472).
 ///
-/// Henüz ekranı olmayan satırlar (Kişisel bilgiler, Bildirim tercihleri,
-/// yasal metinler...) dokununca kısa bir bilgi gösteriyor — ölü düğme
-/// bırakmamak için. İlgili bölümler kurulunca buradan bağlanacak.
+/// Henüz ekranı olmayan satırlar (Kişisel bilgiler, yasal metinler...)
+/// dokununca kısa bir bilgi gösteriyor — ölü düğme bırakmamak için. İlgili
+/// bölümler kurulunca buradan bağlanacak.
 class ProfilePage extends ConsumerWidget {
   const ProfilePage({super.key});
 
@@ -53,10 +54,12 @@ class ProfilePage extends ConsumerWidget {
             _ProfileCard(profile: profile),
             const SizedBox(height: AppSpacing.s4),
             Text(
-              // PDKS bölge bilgisi vermiyor; boşken "Sicil No: 147551 · "
-              // gibi sarkık bir metin kalmasın diye parçalar süzülüyor.
+              // PDKS bölge bilgisi vermiyor, birlikte-api sicil numarası
+              // vermiyor; ikisi de boşken sarkık bir metin kalmasın diye
+              // parçalar süzülüyor.
               [
-                'Sicil No: ${profile.employeeNo}',
+                if (profile.employeeNo case final no? when no.isNotEmpty)
+                  'Sicil No: $no',
                 if (profile.facility.isNotEmpty) profile.facility,
                 if (profile.region.isNotEmpty) profile.region,
               ].join(' · '),
@@ -68,9 +71,9 @@ class ProfilePage extends ConsumerWidget {
 
             // Bu sürümde YALNIZCA çalışan öğeler gösteriliyor.
             //
-            // Kişisel bilgiler, Ailem, İlgi alanların, Bildirim tercihleri,
-            // Dil ve Görünüm ekranları henüz kurulmadı; hiçbir şey yapmayan
-            // satırlar Apple'ın 2.1 "App Completeness" kuralına takılıyor.
+            // Kişisel bilgiler, Ailem, İlgi alanların, Dil ve Görünüm
+            // ekranları henüz kurulmadı; hiçbir şey yapmayan satırlar
+            // Apple'ın 2.1 "App Completeness" kuralına takılıyor.
             //
             // Dil ve Görünüm özellikle dikkat istiyor: veritabanında alanları
             // var ama uygulama ne dil değiştirebiliyor ne de koyu temaya
@@ -84,6 +87,11 @@ class ProfilePage extends ConsumerWidget {
                   label: 'Favori kampanyalar',
                   value: stats.whenOrNull(data: (s) => '${s.favoriteCount}'),
                   onTap: () => context.go(Routes.campaigns),
+                ),
+                SettingsTile(
+                  icon: AppIcons.bell,
+                  label: 'Bildirim tercihleri',
+                  onTap: () => context.push(Routes.communicationPreferences),
                 ),
               ],
             ),
@@ -151,48 +159,23 @@ class ProfilePage extends ConsumerWidget {
       mode: LaunchMode.externalApplication,
     ).catchError((_) => false);
     if (!ok && context.mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Bağlantı açılamadı.')));
+      await showBirlikteAlert(context, title: 'Bağlantı açılamadı');
     }
   }
 
   Future<void> _confirmSignOut(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-        ),
-        title: Text('Çıkış yap', style: AppTypography.h4),
-        content: Text(
-          'Hesabından çıkmak istediğine emin misin? Tekrar girmek için '
+    final confirmed = await showBirlikteConfirm(
+      context,
+      title: 'Çıkış yap',
+      message: 'Hesabından çıkmak istediğine emin misin? Tekrar girmek için '
           'doğrulama kodu gerekecek.',
-          style: AppTypography.bodyMedium.copyWith(
-            color: AppColors.textSecondary,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Vazgeç'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(
-              'Çıkış yap',
-              style: AppTypography.buttonMedium.copyWith(
-                color: AppColors.textError,
-              ),
-            ),
-          ),
-        ],
-      ),
+      confirmLabel: 'Çıkış yap',
+      destructive: true,
     );
 
     if (confirmed != true || !context.mounted) return;
 
-    await ref.read(authRepositoryProvider).signOut();
+    await ref.read(birlikteAuthRepositoryProvider).signOut();
     if (!context.mounted) return;
     // Yığını temizle: geri tuşu oturumlu ekranlara dönmesin.
     context.go(Routes.login);

@@ -1,12 +1,16 @@
 // Router korumasının oturum durumunu TAZE okuduğunu doğrular.
 //
-// Regresyon: koruma önbelleklenmiş bir provider değeri okuduğunda, oturum
-// kurulduktan hemen sonra yapılan gezinme "oturum yok" görüp kullanıcıyı
-// login'e geri atıyordu — kullanıcı kodu giriyor ve başa dönüyordu.
+// Eski Supabase tabanlı tasarımda koruma önbelleklenmiş bir provider değeri
+// okuduğunda, oturum kurulduktan hemen sonra yapılan gezinme "oturum yok"
+// görüp kullanıcıyı login'e geri atıyordu. birlikte-api geçişiyle oturum
+// artık tek bir senkron Notifier (`birlikteSessionProvider`); bu test onun
+// `.set()` çağrısının HEMEN sonraki bir gezinmeye yansıdığını doğruluyor —
+// production'daki `verifyOtp()` de tam bunu yapıyor (ara frame beklemeden).
 import 'dart:async';
 
 import 'package:birlikte/app/router.dart';
 import 'package:birlikte/app/routes.dart';
+import 'package:birlikte/core/birlikte_api/birlikte_session_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,12 +24,8 @@ void main() {
   testWidgets('oturum kurulur kurulmaz korumalı rotaya geçilebilir', (
     tester,
   ) async {
-    // Oturum durumu test sırasında değişiyor; koruma her çağrıldığında
-    // güncel değeri okumalı.
-    var hasSession = false;
-
     final container = ProviderContainer(
-      overrides: testOverrides(sessionCheck: () => hasSession),
+      overrides: testOverrides(loggedIn: false),
     );
     addTearDown(container.dispose);
 
@@ -44,8 +44,8 @@ void main() {
     expect(router.state.matchedLocation, Routes.login);
 
     // Oturum kuruldu; ARADA HİÇ FRAME BEKLEMEDEN gezinme yapılıyor —
-    // gerçek akışta `setSession()` döner dönmez olan tam olarak bu.
-    hasSession = true;
+    // gerçek akışta verifyOtp() başarılı olur olmaz olan tam olarak bu.
+    container.read(birlikteSessionProvider.notifier).set(value: true);
     unawaited(router.push(Routes.welcome));
     await tester.pumpAndSettle();
 

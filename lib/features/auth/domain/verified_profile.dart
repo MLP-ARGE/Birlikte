@@ -19,6 +19,8 @@ class VerifiedProfile {
     this.hiredAt,
     this.language = 'tr',
     this.theme = 'system',
+    this.interestCount = 0,
+    this.missingInfo = const [],
   });
 
   final String fullName;
@@ -34,7 +36,8 @@ class VerifiedProfile {
   final String facility;
 
   /// Bordro kayıtlarındaki çalışan numarası, örn. "MP-984302".
-  final String employeeNo;
+  /// PDKS entegrasyonu için sicil numarası. birlikte-api karşılığı yok.
+  final String? employeeNo;
 
   /// Kurum kaydının eşleştiği tarih.
   final DateTime matchedAt;
@@ -65,6 +68,23 @@ class VerifiedProfile {
 
   /// `public.app_theme` — 'system' | 'light' | 'dark'.
   final String theme;
+
+  /// Oturum sahibinin seçtiği ilgi alanı sayısı (profil ekranındaki sayaç).
+  final int interestCount;
+
+  /// `/api/me`'nin `eksikBilgiler` listesi: `"CINSIYET"`, `"AD"`, `"SOYAD"`
+  /// olabilir. Giriş engellemez (yalnızca doğum tarihi/telefon engeller),
+  /// bu üçü giriş yapıldıktan sonra tamamlanır/bildirilir.
+  final List<String> missingInfo;
+
+  /// Kullanıcının kendisinin tamamlayabileceği tek alan — diğer ikisi (ad,
+  /// soyad) kurum kaydından düzeltilir, uygulamadan değiştirilemez.
+  bool get genderMissing => missingInfo.contains('CINSIYET');
+
+  /// Ad ve/veya soyad kurumda eksik — kullanıcı bunu uygulamadan
+  /// düzeltemez, yalnızca bilgilendirilir.
+  bool get nameMissingAtInstitution =>
+      missingInfo.contains('AD') || missingInfo.contains('SOYAD');
 
   /// Karşılama başlığında kullanılan ad ("Hoş geldin, Ayşe").
   String get firstName => fullName.trim().split(RegExp(r'\s+')).first;
