@@ -37,12 +37,11 @@ abstract final class AppConfig {
 
   /// birlikte-api taban adresi.
   ///
-  /// `--dart-define=BIRLIKTE_API_URL=...` ile geçilir. Varsayılan TEST
-  /// ortamı — üretim adresi geldiğinde CI/CD secret'ı güncellenmeli, kodun
-  /// kendisi değişmemeli (aynı SUPABASE_URL deseni).
+  /// `--dart-define=BIRLIKTE_API_URL=...` ile geçilir. Varsayılan CANLI
+  /// ortam.
   static const String birlikteApiUrl = String.fromEnvironment(
     'BIRLIKTE_API_URL',
-    defaultValue: 'https://birliktetest.mlpcare.com',
+    defaultValue: 'https://birlikteapi.mlpcare.com',
   );
 
   /// Supabase proje URL'i.

@@ -17,7 +17,7 @@ import { handlePreflight, jsonResponse } from '../_shared/cors.ts';
 const url = Deno.env.get('SUPABASE_URL')!;
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const BIRLIKTE_API_URL =
-  Deno.env.get('BIRLIKTE_API_URL') ?? 'https://birliktetest.mlpcare.com';
+  Deno.env.get('BIRLIKTE_API_URL') ?? 'https://birlikteapi.mlpcare.com';
 
 // İKİ AYRI İSTEMCİ — auth-verify/pdks-verify'daki ile aynı sebep:
 // verifyOtp() başarılı olunca istemcinin oturumunu o kullanıcıya çevirir.

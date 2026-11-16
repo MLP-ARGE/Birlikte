@@ -37,7 +37,7 @@ class ProfileRepository {
     return VerifiedProfile(
       fullName: '${(row['ad'] as String?) ?? ''} ${(row['soyad'] as String?) ?? ''}'
           .trim(),
-      institution: _institutionFromKurumKodu(row['kurumKodu'] as String?),
+      institution: _institutionFromRow(row),
       // birlikte-api bölge kavramı vermiyor; departman/şube ile yetiniyoruz.
       region: '',
       department: (row['departman'] as String?) ?? '',
@@ -56,14 +56,26 @@ class ProfileRepository {
     );
   }
 
-  /// Yalnızca "MLP" (Medical Park/MLP Care) doğrulandı; Liv Hospital, Liv
-  /// Koleji ve İstinye Üniversitesi'nin kurumKodu karşılığı henüz
-  /// paylaşılmadı. Bilinmeyen bir kod rozetin rengini/logosunu etkiler ama
-  /// uygulamayı kilitlemez — Medical Park'a düşer.
-  static Institution _institutionFromKurumKodu(String? kod) => switch (kod) {
-    'MLP' => Institution.medicalPark,
-    _ => Institution.medicalPark,
-  };
+  /// Backend ekibinin doğruladığı eşleme (`kurum` serbest metni "YAKIN"
+  /// kayıtlarında NULL geldiği için güvenilmez, `kurumKodu` her zaman dolu
+  /// ve üçe ayrılıyor):
+  /// - "ISU" → İstinye Üniversitesi (`programTipi`: ÖNLİSANS/LİSANS/...)
+  /// - "LIV" → Liv Koleji (`programTipi`: ANAOKULU/İLKOKUL/ORTAOKUL/LİSE) —
+  ///   bu kodun altında Liv Hospital YOK, yalnızca okullar var.
+  /// - "MLP" → Medical Park (genel merkez dahil hastaneler; ikisini ayıran
+  ///   `subeKodu`/`subeAdi` ("MER"/"Genel Merkez") ama rozet ikisi için de
+  ///   aynı).
+  ///
+  /// Bilinmeyen/boş bir kod (henüz görülmemiş bir değer) Medical Park'a
+  /// düşer — rozetin rengini/logosunu etkiler ama uygulamayı kilitlemez.
+  static Institution _institutionFromRow(Map<String, dynamic> row) {
+    final kurumKodu = (row['kurumKodu'] as String?)?.trim().toUpperCase();
+    return switch (kurumKodu) {
+      'ISU' => Institution.istinyeUniversitesi,
+      'LIV' => Institution.livKoleji,
+      _ => Institution.medicalPark,
+    };
+  }
 }
 
 final profileRepositoryProvider = Provider<ProfileRepository>(
