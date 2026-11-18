@@ -23,7 +23,10 @@ import 'kvkk_popup.dart';
 
 /// Karşılama ekranı (Figma: `welcome-screen` 3:160 boş, 199:2307 onaylı).
 ///
-/// Şartlar kabul edilene kadar "Uygulamaya Başla" pasif.
+/// Onay kutusu yalnızca `kvkkOnayGerekli: true` iken (ilk giriş ya da metin
+/// güncellenip yeniden onay istediğinde) gösteriliyor — diğer uygulamalarda
+/// olduğu gibi, zaten onay vermiş dönen bir kullanıcıya her girişte aynı
+/// soru tekrar sorulmuyor (bkz. `_start`).
 class WelcomePage extends ConsumerStatefulWidget {
   const WelcomePage({super.key});
 
@@ -61,7 +64,18 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
       setState(() => _startingSending = false);
     }
     if (!mounted) return;
-    unawaited(context.push(Routes.institutionMatch));
+
+    // Diğer çoğu uygulamada olduğu gibi: kurum doğrulama + ilgi alanı
+    // seçimi yalnızca İLK girişte gösterilir. En az bir ilgi alanı seçmiş
+    // (bu akışı daha önce tamamlamış) bir kullanıcı çıkış/giriş yapınca
+    // aynı ekranları tekrar görmemeli — doğrudan ana sayfaya gider.
+    final alreadyOnboarded =
+        (ref.read(profileProvider).value?.interestCount ?? 0) > 0;
+    if (alreadyOnboarded) {
+      context.go(Routes.home);
+    } else {
+      unawaited(context.push(Routes.institutionMatch));
+    }
   }
 
   @override
@@ -78,6 +92,8 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
     ensureAppOpenRecorded(ref);
 
     final profile = ref.watch(verifiedProfileProvider);
+    final kvkkRequired = ref.watch(pendingKvkkOnayProvider);
+    final canStart = (kvkkRequired ? _accepted : true) && !_startingSending;
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -120,20 +136,20 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
                     const SizedBox(height: _afterHeading),
                     _IdentityCard(profile: profile),
                     const Spacer(),
-                    BirlikteCheckbox(
-                      value: _accepted,
-                      onChanged: _onAcceptedChanged,
-                      label: 'MLPCARE Birlikte Kullanım Şartları ve KVKK '
-                          "Aydınlatma Metni'ni okudum, kabul ediyorum.",
-                    ),
-                    // Figma: checkbox ile buton arası 16.
-                    const SizedBox(height: AppSpacing.s5),
+                    if (kvkkRequired) ...[
+                      BirlikteCheckbox(
+                        value: _accepted,
+                        onChanged: _onAcceptedChanged,
+                        label: 'MLPCARE Birlikte Kullanım Şartları ve KVKK '
+                            "Aydınlatma Metni'ni okudum, kabul ediyorum.",
+                      ),
+                      // Figma: checkbox ile buton arası 16.
+                      const SizedBox(height: AppSpacing.s5),
+                    ],
                     BirlikteButton(
                       label: 'Uygulamaya Başla',
                       isLoading: _startingSending,
-                      onPressed: _accepted && !_startingSending
-                          ? _start
-                          : null,
+                      onPressed: canStart ? _start : null,
                     ),
                   ],
                 ),

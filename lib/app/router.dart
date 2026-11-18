@@ -11,6 +11,7 @@ import '../features/auth/presentation/verification_error_page.dart';
 import '../features/auth/presentation/welcome_page.dart';
 import '../features/campaigns/presentation/campaign_detail_page.dart';
 import '../features/campaigns/presentation/campaigns_list_page.dart';
+import '../features/campaigns/presentation/favorite_campaigns_page.dart';
 import '../features/kandas/presentation/kandas_page.dart';
 import '../features/wallet/presentation/wallet_page.dart';
 import '../features/home/presentation/home_page.dart';
@@ -144,6 +145,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'interest-selection',
         builder: (context, state) => const InterestSelectionPage(),
       ),
+      GoRoute(
+        path: Routes.editInterests,
+        name: 'edit-interests',
+        builder: (context, state) =>
+            const InterestSelectionPage(isEditing: true),
+      ),
       // Kampanya detayı bilinçli olarak shell'in DIŞINDA, kök seviyede bir
       // rota — Figma'da bu ekranda alt navigasyon yok (CTA bar en altta).
       // Branch içine gömülseydi AppShell'in bottomNavigationBar'ı her zaman
@@ -161,6 +168,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: Routes.communicationPreferences,
         name: 'communication-preferences',
         builder: (context, state) => const CommunicationPreferencesPage(),
+      ),
+      GoRoute(
+        path: Routes.favoriteCampaigns,
+        name: 'favorite-campaigns',
+        builder: (context, state) => const FavoriteCampaignsPage(),
       ),
       // Alt navigasyonun 5 sekmesi — her biri kendi Navigator'ına sahip bir
       // "branch". Sekmeler arası geçişte push/pop animasyonu oynamaz ve her

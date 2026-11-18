@@ -20,8 +20,8 @@ class ProfileStats {
 }
 
 /// Tüm sayaçlar artık zaten yüklenmiş başka provider'lardan türetiliyor
-/// (aile: birlikte-api yakınlar, favoriler: cihaz-yerel, ilgi alanı: profil);
-/// ayrı bir Supabase sorgusuna gerek kalmadı.
+/// (aile: birlikte-api yakınlar, favoriler: birlikte-api favori kampanyalar,
+/// ilgi alanı: profil); ayrı bir sorguya gerek kalmadı.
 final profileStatsProvider = FutureProvider<ProfileStats>((ref) async {
   final profile = ref.watch(verifiedProfileProvider);
   return ProfileStats(

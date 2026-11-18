@@ -51,12 +51,23 @@ class CampaignRepository {
   }
 
   /// Kupon kodu üretir. Aynı kampanyadan tekrar istenirse sunucu aynı
-  /// kuponu döner (`KUPON_MEVCUT`). Hata kodları: `KUPON_YOK` (400),
-  /// `KAMPANYA_BULUNAMADI` (404), `KOTA_DOLDU` (409), `YETERSIZ_PUAN` (409).
-  Future<CampaignCoupon> createCoupon(String kampanyaGuid) async {
-    final veri = await _api.kuponAl(kampanyaGuid);
-    return _couponFromRow(veri);
+  /// kuponu döner (`KUPON_MEVCUT`, `alreadyExisted: true`) — yeni kupon
+  /// oluşmaz, puan tekrar düşmez; çağıran taraf buna göre "kuponun hazır"
+  /// yerine "zaten kuponun var" göstermeli (backend'in mobil kuralı). Hata
+  /// kodları: `KUPON_YOK` (400), `KAMPANYA_BULUNAMADI` (404), `KOTA_DOLDU`
+  /// (409), `YETERSIZ_PUAN` (409).
+  Future<({bool alreadyExisted, CampaignCoupon coupon})> createCoupon(
+    String kampanyaGuid,
+  ) async {
+    final (code, veri) = await _api.kuponAl(kampanyaGuid);
+    return (alreadyExisted: code == 'KUPON_MEVCUT', coupon: _couponFromRow(veri));
   }
+
+  /// Favoriye ekler/çıkarır. Zaten o durumdaysa da sunucu aynı başarılı
+  /// yanıtı döner — çağıran taraf önce kontrol etmek zorunda değil.
+  Future<void> setFavorite(String kampanyaGuid, bool favori) => favori
+      ? _api.favoriKampanyaEkle(kampanyaGuid)
+      : _api.favoriKampanyaCikar(kampanyaGuid);
 
   static Campaign _fromListRow(Map<String, dynamic> row) =>
       _campaignFrom(row, description: _str(row['kisaAciklama']));
@@ -111,6 +122,7 @@ class CampaignRepository {
       kuponum: row['kuponum'] is Map<String, dynamic>
           ? _couponFromRow(row['kuponum'] as Map<String, dynamic>)
           : null,
+      favori: row['favori'] as bool? ?? false,
     );
   }
 

@@ -218,7 +218,7 @@ class _FavoriteButton extends StatelessWidget {
             dimension: BirlikteCampaignCard._favoriteSize,
             child: Center(
               child: Icon(
-                AppIcons.heart,
+                active ? AppIcons.heartFilled : AppIcons.heart,
                 size: 24,
                 color: active ? AppColors.textError : AppColors.iconDefault,
               ),

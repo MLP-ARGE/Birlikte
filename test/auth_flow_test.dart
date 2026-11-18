@@ -30,7 +30,12 @@ void main() {
       }
     }
 
-    await tester.pumpWidget(ProviderScope(overrides: testOverrides(loggedIn: null), child: const BirlikteApp()));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: testOverrides(loggedIn: null, interestCount: 0),
+        child: const BirlikteApp(),
+      ),
+    );
     // Splash 1200 ms sonra yönlendiriyor.
     await tester.pump(const Duration(milliseconds: 1300));
     await advance();
@@ -65,19 +70,10 @@ void main() {
     );
     await advance();
     expect(find.textContaining('Hoş geldin'), findsOneWidget);
+    // `kvkkOnayGerekli: false` (fake'in sabit yanıtı) — onay kutusu
+    // gösterilmiyor, buton doğrudan aktif (bkz. `WelcomePage`).
+    expect(find.textContaining('okudum, kabul ediyorum'), findsNothing);
 
-    // Şartlar kabul edilmeden buton pasif.
-    await tester.tap(find.text('Uygulamaya Başla'));
-    await advance(4);
-    expect(find.textContaining('Hoş geldin'), findsOneWidget);
-
-    await tester.tap(find.textContaining('okudum, kabul ediyorum'));
-    await advance();
-    // Kutu işaretlenince KVKK metnini okumak isteyenler için bir popup
-    // açılıyor — kapatmadan devam edilemez.
-    expect(find.text('KVKK Aydınlatma Metni'), findsOneWidget);
-    await tester.tap(find.text('Kapat'));
-    await advance();
     await tester.tap(find.text('Uygulamaya Başla'));
     await advance();
     expect(find.text('Kayıtların bulundu'), findsOneWidget);

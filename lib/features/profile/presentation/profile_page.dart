@@ -18,7 +18,9 @@ import '../../../shared/widgets/birlikte_institution_badge.dart';
 import '../../auth/application/verified_profile_provider.dart';
 import '../../auth/data/birlikte_auth_repository.dart';
 import '../../auth/domain/verified_profile.dart';
+import '../../home/application/home_providers.dart';
 import '../data/profile_stats.dart';
+import 'widgets/blood_type_sheet.dart';
 import 'widgets/settings_tile.dart';
 
 /// Profil (Figma: `profile` 3:1472).
@@ -86,12 +88,27 @@ class ProfilePage extends ConsumerWidget {
                   icon: AppIcons.heart,
                   label: 'Favori kampanyalar',
                   value: stats.whenOrNull(data: (s) => '${s.favoriteCount}'),
-                  onTap: () => context.go(Routes.campaigns),
+                  onTap: () => context.push(Routes.favoriteCampaigns),
                 ),
                 SettingsTile(
                   icon: AppIcons.bell,
                   label: 'Bildirim tercihleri',
                   onTap: () => context.push(Routes.communicationPreferences),
+                ),
+                SettingsTile(
+                  icon: AppIcons.star,
+                  label: 'İlgi alanların',
+                  value: stats.whenOrNull(data: (s) => '${s.interestCount}'),
+                  onTap: () => context.push(Routes.editInterests),
+                ),
+                SettingsTile(
+                  icon: AppIcons.droplet,
+                  label: 'Kan grubu',
+                  value: ref.watch(bloodTypeAsyncProvider).value ?? 'Ekle',
+                  onTap: () => showBloodTypeSheet(
+                    context,
+                    ref.read(bloodTypeAsyncProvider).value,
+                  ),
                 ),
               ],
             ),

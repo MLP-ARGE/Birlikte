@@ -27,7 +27,10 @@ class KandasSection extends StatelessWidget {
       children: [
         BirlikteSectionHeader(
           title: 'Kan İhtiyacı Olanlar',
-          actionLabel: 'Tümünü Gör',
+          // `onSeeAll` yalnızca ana sayfadaki özet kullanımında dolu —
+          // Kandaş sekmesi zaten bu listenin TAMAMI, orada kendi kendine
+          // yönlendiren bir "Tümünü Gör" anlamsız (bkz. `KandasPage`).
+          actionLabel: onSeeAll == null ? null : 'Tümünü Gör',
           onAction: onSeeAll,
         ),
         // Figma: bölüm içi gap 14.
@@ -116,7 +119,7 @@ class _RequestRow extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(
-                        request.name,
+                        request.hospital,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.h6.copyWith(
@@ -133,7 +136,11 @@ class _RequestRow extends StatelessWidget {
                 // Figma: info gap 3.
                 const SizedBox(height: 3),
                 Text(
-                  request.hospital,
+                  request.location?.isNotEmpty ?? false
+                      ? request.location!
+                      : (request.description ?? ''),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: AppTypography.caption.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -142,7 +149,7 @@ class _RequestRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 14),
-          _SupportButton(onTap: onSupport),
+          _SupportButton(applied: request.applied, onTap: onSupport),
         ],
       ),
     );
@@ -188,8 +195,11 @@ class _UrgentTag extends StatelessWidget {
 /// "Destek ol" düğmesi (Figma: `support-btn` 205:451 — 34 yüksek, pill,
 /// `surfaceSunken` zemin, yatay iç boşluk 14).
 class _SupportButton extends StatelessWidget {
-  const _SupportButton({required this.onTap});
+  const _SupportButton({required this.applied, required this.onTap});
 
+  /// Kullanıcı bu talebe zaten başvurmuş mu — başvurmuşsa dokununca
+  /// başvuru geri çekiliyor (bkz. backend'in mobil önerisi).
+  final bool applied;
   final VoidCallback? onTap;
 
   @override
@@ -204,13 +214,15 @@ class _SupportButton extends StatelessWidget {
           alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
-            color: AppColors.surfaceSunken,
+            color: applied
+                ? AppColors.statusSuccessSubtle
+                : AppColors.surfaceSunken,
             borderRadius: BorderRadius.circular(AppRadius.full),
           ),
           child: Text(
-            'Destek ol',
+            applied ? 'Başvurdun' : 'Destek ol',
             style: AppTypography.buttonSmall.copyWith(
-              color: AppColors.textPrimary,
+              color: applied ? AppColors.textSuccess : AppColors.textPrimary,
             ),
           ),
         ),

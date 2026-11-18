@@ -2,12 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_institutions.dart';
 import '../../campaigns/data/campaign_repository.dart';
-import '../../campaigns/data/favorites_repository.dart';
 import '../data/home_repository.dart';
 import '../domain/home_models.dart';
 
-/// Puan özeti — birlikte-api `/api/me/puan`'ın alan adları doğrulanana kadar
-/// sıfır dönüyor (bkz. `HomeRepository` üstündeki not).
+/// Puan özeti — `/api/me/puan`'dan.
 final pointsSummaryAsyncProvider = FutureProvider<PointsSummary>((ref) async {
   return ref.watch(homeRepositoryProvider).fetchPoints();
 });
@@ -20,7 +18,7 @@ final pointsSummaryProvider = Provider<PointsSummary>(
 );
 
 /// Tüm kampanyalar — Kampanyalar sekmesinin ana listesi. Diğer bölümler
-/// (ana sayfa karuseli, "Sana Özel") bu listeden türetiliyor; tek kaynak
+/// (ana sayfa karuseli, favoriler) bu listeden türetiliyor; tek kaynak
 /// burada, aksi halde aynı kampanya iki ayrı id ile ekranlar arası tutarsız
 /// düşerdi.
 ///
@@ -55,26 +53,13 @@ final endingSoonCampaignsProvider = Provider<List<Campaign>>((ref) {
   return all.take(4).toList();
 });
 
-final promoOffersProvider = Provider<List<PromoOffer>>(
-  (ref) => const [
-    PromoOffer(
-      title: 'Ücretsiz psikolog seansı',
-      subtitle: 'Yılda 6 online görüşme',
-      campaignId: 'mlpcare-psikolog',
-    ),
-    PromoOffer(
-      title: "Liv Koleji'nde %50",
-      subtitle: 'Çalışan çocuklarına özel',
-      campaignId: 'liv-koleji-egitim',
-    ),
-  ],
-);
-
 /// Favoriye eklenen kampanyaların `kampanyaGuid` değerleri.
 ///
-/// birlikte-api'de favori/yer imi ucu yok; bu yüzden favoriler yalnızca bu
-/// cihazda tutuluyor (bkz. `FavoritesRepository`) — sunucuyla senkronize
-/// olmuyor, telefon değişirse sıfırlanır.
+/// Artık gerçek bir sunucu ucu var (`PUT`/`DELETE
+/// /api/kampanyalar/{guid}/favori`) — başlangıç kümesi kampanya listesinin
+/// kendi `favori` alanından türüyor (bkz. `campaignsAsyncProvider`, tek
+/// kaynak); `toggle()` iyimser günceller, sunucu isteği başarısız olursa
+/// geri alır.
 final favoriteCampaignIdsProvider =
     AsyncNotifierProvider<FavoriteCampaignIds, Set<String>>(
       FavoriteCampaignIds.new,
@@ -82,7 +67,10 @@ final favoriteCampaignIdsProvider =
 
 class FavoriteCampaignIds extends AsyncNotifier<Set<String>> {
   @override
-  Future<Set<String>> build() => ref.watch(favoritesRepositoryProvider).fetchIds();
+  Future<Set<String>> build() async {
+    final campaigns = await ref.watch(campaignsAsyncProvider.future);
+    return campaigns.where((c) => c.favori).map((c) => c.id).toSet();
+  }
 
   Future<void> toggle(String id) async {
     // İlk yükleme bitmeden dokunulursa, aşağıdaki iyimser güncelleme
@@ -96,7 +84,12 @@ class FavoriteCampaignIds extends AsyncNotifier<Set<String>> {
     // ayrıştırılıyor ve az önce eklenen öğe hemen siliniyordu.
     final next = adding ? {...current, id} : ({...current}..remove(id));
     state = AsyncData(next);
-    await ref.read(favoritesRepositoryProvider).save(next);
+    try {
+      await ref.read(campaignRepositoryProvider).setFavorite(id, adding);
+    } catch (_) {
+      state = AsyncData(current);
+      rethrow;
+    }
   }
 }
 
@@ -105,8 +98,19 @@ final favoriteSlugsProvider = Provider<Set<String>>(
   (ref) => ref.watch(favoriteCampaignIdsProvider).value ?? const {},
 );
 
-/// Açık kan talepleri — birlikte-api `/api/kan-talepleri`'nin alan adları
-/// doğrulanana kadar boş dönüyor (bkz. `HomeRepository` üstündeki not).
+/// "Favori kampanyalarım" ekranı — tüm kampanya listesinden (tek kaynak)
+/// favori olanlar süzülüyor; ayrı bir `/favoriler` çağrısı yapılmıyor, aksi
+/// halde aynı kampanya bu listede ve Kampanyalar sekmesinde ayrı ayrı
+/// yüklenip tutarsız düşebilirdi.
+final favoriteCampaignsProvider = Provider<List<Campaign>>((ref) {
+  final favorites = ref.watch(favoriteSlugsProvider);
+  return ref
+      .watch(campaignsProvider)
+      .where((c) => favorites.contains(c.id))
+      .toList();
+});
+
+/// Açık kan talepleri — `/api/kan-talepleri`'nden.
 final bloodRequestsAsyncProvider =
     FutureProvider<List<BloodRequest>>((ref) async {
   return ref.watch(homeRepositoryProvider).fetchBloodRequests();
@@ -116,8 +120,28 @@ final bloodRequestsProvider = Provider<List<BloodRequest>>(
   (ref) => ref.watch(bloodRequestsAsyncProvider).value ?? const [],
 );
 
-/// Kullanıcının kuponları — birlikte-api `/api/me/kuponlar`'ın alan adları
-/// doğrulanana kadar boş dönüyor (bkz. `HomeRepository` üstündeki not).
+/// Bir kan talebine başvurur/başvuruyu geri çeker ve listeyi tazeler.
+/// `KandasSection`'ın "Destek ol"/"Başvurdun" düğmesi bunu çağırıyor.
+Future<void> toggleBloodRequestApplication(
+  WidgetRef ref,
+  BloodRequest request,
+) async {
+  final repo = ref.read(homeRepositoryProvider);
+  if (request.applied) {
+    await repo.cancelBloodRequestApplication(request.id);
+  } else {
+    await repo.applyToBloodRequest(request.id);
+  }
+  ref.invalidate(bloodRequestsAsyncProvider);
+}
+
+/// Oturum sahibinin kan grubu — `/api/me/kan-grubu`'ndan, hiç girilmediyse
+/// `null`. Profil ekranında düzenlenebiliyor.
+final bloodTypeAsyncProvider = FutureProvider<String?>((ref) async {
+  return ref.watch(homeRepositoryProvider).fetchBloodType();
+});
+
+/// Kullanıcının kuponları — `/api/me/kuponlar`'dan.
 final couponsAsyncProvider = FutureProvider<List<UserCoupon>>((ref) async {
   return ref.watch(homeRepositoryProvider).fetchCoupons();
 });
@@ -134,6 +158,22 @@ final familyMembersProvider = Provider<List<FamilyMember>>(
 
 /// Eklenebilecek azami yakın sayısı.
 final familyCapacityProvider = Provider<int>((ref) => 3);
+
+/// Kampanyalar sekmesi `IndexedStack`'te canlı kaldığı için arama/filtre/
+/// sıralama seçimi sekmeler arası geçişte (normal tab davranışı) korunuyor
+/// — ama "Tümünü Gör" ya da hızlı erişimdeki "Kampanya" karosuyla GİRİLEN
+/// bir ziyaret, önceki ziyaretten kalma filtreyle açılmamalı; kullanıcı o an
+/// TÜM kampanyaları görmeyi bekliyor. `bump()` çağrıldıkça `CampaignsListPage`
+/// filtrelerini sıfırlıyor.
+final campaignsFilterResetProvider =
+    NotifierProvider<CampaignsFilterReset, int>(CampaignsFilterReset.new);
+
+class CampaignsFilterReset extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void bump() => state++;
+}
 
 /// Kampanyalarda kurum belirtilmediğinde gösterilecek kapsam etiketi için
 /// yardımcı — enum'a bağlı olmadığını belli etmek adına ayrı tutuldu.

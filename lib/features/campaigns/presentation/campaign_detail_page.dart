@@ -240,7 +240,7 @@ class _Hero extends StatelessWidget {
                   ),
                   const SizedBox(width: AppSpacing.s3),
                   _HeroButton(
-                    icon: AppIcons.heart,
+                    icon: isFavorite ? AppIcons.heartFilled : AppIcons.heart,
                     label: isFavorite
                         ? 'Favorilerden çıkar'
                         : 'Favorilere ekle',
@@ -859,7 +859,7 @@ class _SecondaryActions extends StatelessWidget {
           onTap: () => _stub(context, 'Değerlendirme yakında eklenecek.'),
         ),
         _ActionPill(
-          icon: AppIcons.heart,
+          icon: isFavorite ? AppIcons.heartFilled : AppIcons.heart,
           label: isFavorite ? 'Kaydedildi' : 'Kaydet',
           active: isFavorite,
           onTap: onFavoriteTap,

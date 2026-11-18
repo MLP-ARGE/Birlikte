@@ -12,6 +12,7 @@ import '../../../../core/theme/app_typography.dart';
 import '../../../../shared/widgets/birlikte_alert_dialog.dart';
 import '../../../../shared/widgets/birlikte_button.dart';
 import '../../../../shared/widgets/birlikte_info_card.dart';
+import '../../../home/application/home_providers.dart';
 import '../../../home/domain/home_models.dart';
 import '../../data/campaign_repository.dart';
 
@@ -34,11 +35,13 @@ Future<void> showCouponCreateSheet(BuildContext context, Campaign campaign) {
 /// Kuponu zaten alınmış bir kampanya için kodu tekrar gösterir.
 Future<void> showExistingCouponDialog(
   BuildContext context,
-  CampaignCoupon coupon,
-) {
+  CampaignCoupon coupon, {
+  bool alreadyExisted = true,
+}) {
   return showDialog<void>(
     context: context,
-    builder: (_) => _CouponSuccessDialog(coupon: coupon),
+    builder: (_) =>
+        _CouponSuccessDialog(coupon: coupon, alreadyExisted: alreadyExisted),
   );
 }
 
@@ -152,13 +155,26 @@ class _CouponCreateSheetState extends ConsumerState<_CouponCreateSheet> {
     setState(() => _creating = true);
 
     try {
-      final coupon = await ref
+      final (:alreadyExisted, :coupon) = await ref
           .read(campaignRepositoryProvider)
           .createCoupon(campaign.id);
 
+      // Kampanyanın kendi `kuponAldim`/`kuponum`'u ve Kuponlarım listesi
+      // şimdi bayat — aksi halde kupon oluşturulduktan sonra Kuponlarım'da
+      // görünmez, kampanya hâlâ "Kupon Oluştur" gösterir ve kullanıcı aynı
+      // kuponu tekrar "oluşturabiliyormuş" gibi algılar.
+      ref.invalidate(campaignsAsyncProvider);
+      ref.invalidate(couponsAsyncProvider);
+
       if (!mounted) return;
       Navigator.pop(context);
-      unawaited(showExistingCouponDialog(context, coupon));
+      unawaited(
+        showExistingCouponDialog(
+          context,
+          coupon,
+          alreadyExisted: alreadyExisted,
+        ),
+      );
     } on BirlikteApiException catch (e) {
       if (!mounted) return;
       await showBirlikteAlert(
@@ -304,9 +320,19 @@ class _RuleRow extends StatelessWidget {
 /// Kupon başarıyla oluşturulunca (ya da daha önce alınmış bir kuponu tekrar
 /// açarken) gösterilen kod (Figma: `coupon-success_Main` 3:834).
 class _CouponSuccessDialog extends StatelessWidget {
-  const _CouponSuccessDialog({required this.coupon});
+  const _CouponSuccessDialog({
+    required this.coupon,
+    required this.alreadyExisted,
+  });
 
   final CampaignCoupon coupon;
+
+  /// `KUPON_MEVCUT` — bu kampanyadan daha önce kupon alınmış, backend
+  /// AYNISINI döndürdü (yeni kupon oluşmadı, puan tekrar düşmedi). Mobil
+  /// kuralı: bunu "kuponun hazır" gibi değil, "zaten kuponun var" gibi
+  /// göstermek — aksi halde kullanıcı her dokunuşta yeni bir kupon
+  /// ürettiğini sanır.
+  final bool alreadyExisted;
 
   @override
   Widget build(BuildContext context) {
@@ -342,7 +368,9 @@ class _CouponSuccessDialog extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.s5),
             Text(
-              coupon.isExpired ? 'Kuponun' : 'Kuponun hazır',
+              coupon.isExpired
+                  ? 'Kuponun'
+                  : (alreadyExisted ? 'Zaten kuponun var' : 'Kuponun hazır'),
               style: AppTypography.h4,
             ),
             const SizedBox(height: AppSpacing.s2),

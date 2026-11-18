@@ -5,30 +5,75 @@ import '../domain/home_models.dart';
 
 /// Ana sayfadaki puan, kan talebi, kupon ve aile bölümlerinin veri kaynağı.
 ///
-/// Aile (yakınlar) birlikte-api'den geliyor (`GET /api/me/yakinlar`, alan
-/// adları doğrulandı). Puan (`/api/me/puan`), kuponlar (`/api/me/kuponlar`)
-/// ve kan bağışı (`/api/kan-talepleri`) uçları da birlikte-api'de var ama
-/// yanıt gövdelerinin tam alan adları henüz doğrulanmadı (kampanya/ilgi
-/// alanı uçlarında olduğu gibi örnek JSON paylaşılmadı) — yanlış alan adıyla
-/// para/puan/sağlık verisini sessizce yanlış göstermek riskli olduğundan, bu
-/// üçü doğrulanana kadar boş/sıfır dönüyor ve ilgili bölümler kendi boş
-/// durumlarını gösteriyor.
+/// Tüm dört uç da (`/api/me/yakinlar`, `/api/me/puan`, `/api/me/kuponlar`,
+/// `/api/kan-talepleri`) artık birlikte-api'den geliyor; alan adları backend
+/// ekibiyle doğrulandı.
 class HomeRepository {
   const HomeRepository(this._api);
 
   final BirlikteApiClient _api;
 
+  /// Backend yalnızca `bakiye` (harcanabilir toplam) veriyor — "bekleyen"
+  /// kazanım kavramı yok, bu yüzden `usable` ile `total` aynı ve `pending`
+  /// hep 0. Uydurma bir ayrım göstermektense gerçek veriyle tutarlı kalıyor.
   Future<PointsSummary> fetchPoints() async {
-    return const PointsSummary(total: 0, usable: 0, pending: 0);
+    final veri = await _api.puanBakiyem();
+    final bakiye = (veri['bakiye'] as num?)?.toInt() ?? 0;
+    return PointsSummary(total: bakiye, usable: bakiye, pending: 0);
   }
 
-  Future<List<BloodRequest>> fetchBloodRequests({int limit = 5}) async {
-    return const [];
+  Future<List<BloodRequest>> fetchBloodRequests({
+    int sayfa = 1,
+    int sayfaBoyutu = 20,
+  }) async {
+    final veri = await _api.kanTalepleri(sayfa: sayfa, sayfaBoyutu: sayfaBoyutu);
+    final rows = (veri['talepler'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>();
+    return rows.map(_bloodRequestFromRow).toList();
   }
+
+  Future<void> applyToBloodRequest(String kanTalebiGuid) =>
+      _api.kanBasvurusuYap(kanTalebiGuid);
+
+  Future<void> cancelBloodRequestApplication(String kanTalebiGuid) =>
+      _api.kanBasvurusunuGeriCek(kanTalebiGuid);
+
+  /// `null` dönerse kullanıcı hiç kan grubu girmemiş.
+  Future<String?> fetchBloodType() async {
+    final veri = await _api.kanGrubum();
+    return veri?['kanGrubu'] as String?;
+  }
+
+  /// Silmek için `null` gönder.
+  Future<void> saveBloodType(String? kanGrubu) =>
+      _api.kanGrubuKaydet(kanGrubu: kanGrubu);
+
+  static BloodRequest _bloodRequestFromRow(Map<String, dynamic> row) =>
+      BloodRequest(
+        id: row['kanTalebiGuid'] as String,
+        bloodType: (row['kanGrubu'] as String?) ?? '',
+        hospital: (row['hastane'] as String?) ?? '',
+        location: row['il'] as String?,
+        description: row['aciklama'] as String?,
+        urgent: row['aciliyet'] == 'ACIL',
+        pointsReward: (row['puanOdulu'] as num?)?.toInt() ?? 0,
+        eligible: row['uygun'] as bool?,
+        applied: row['basvurdum'] as bool? ?? false,
+      );
 
   Future<List<UserCoupon>> fetchCoupons() async {
-    return const [];
+    final rows = (await _api.kuponlarim()).cast<Map<String, dynamic>>();
+    return rows.map(_couponFromRow).toList();
   }
+
+  static UserCoupon _couponFromRow(Map<String, dynamic> row) => UserCoupon(
+    code: (row['kod'] as String?) ?? '',
+    brand: (row['firma'] as String?) ?? '',
+    title: (row['baslik'] as String?) ?? '',
+    discountLabel: (row['indirimMetni'] as String?) ?? '',
+    status: (row['durum'] as String?) ?? 'AKTIF',
+    expiresAt: DateTime.tryParse((row['gecerlilikSonu'] as String?) ?? ''),
+  );
 
   /// Kullanıcının yakınları — yalnızca aktif kayıtlar.
   Future<List<FamilyMember>> fetchFamilyMembers() async {

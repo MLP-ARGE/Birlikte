@@ -13,23 +13,6 @@ class PointsSummary {
   final int pending;
 }
 
-/// "Sana Özel" karusel kartı (Figma: `promo-card` 201:204).
-class PromoOffer {
-  const PromoOffer({
-    required this.title,
-    required this.subtitle,
-    this.imageUrl,
-    this.campaignId,
-  });
-
-  final String title;
-  final String subtitle;
-  final String? imageUrl;
-
-  /// Doluysa "İncele" dokunuşu bu kampanyanın detayına gider.
-  final String? campaignId;
-}
-
 /// Kampanyanın eşleştiği ilgi alanı (Figma: `Chip / Category` —
 /// `chips-row` 445:10135).
 ///
@@ -107,6 +90,7 @@ class Campaign {
     this.puanBedeli = 0,
     this.kuponAldim = false,
     this.kuponum,
+    this.favori = false,
   });
 
   /// birlikte-api `kampanyaGuid` — tek kimlik, hem adreslemede hem kupon/
@@ -178,6 +162,11 @@ class Campaign {
   /// Yalnızca detayda dolu gelir — [kuponAldim] true ise alınan kupon.
   final CampaignCoupon? kuponum;
 
+  /// Oturum sahibi bu kampanyayı favorilemiş mi — `GET /api/kampanyalar`
+  /// (liste), kampanya detayı ve `GET /api/me` içindeki kampanyalarda artık
+  /// bulunan `favori` alanından.
+  final bool favori;
+
   /// Detay ekranında "Koşullar" sekmesini göstermeye yeten içerik var mı.
   bool get hasTermsDetail =>
       whoQualifies.isNotEmpty || rules.isNotEmpty || cancellationNote != null;
@@ -206,20 +195,44 @@ class CampaignCoupon {
 }
 
 /// Kan bağışı talebi (Figma: `request-row` 205:437).
+///
+/// `/api/kan-talepleri`'nden — talep bir kişiye değil hastaneye ait, bu
+/// yüzden eski (Supabase döneminden kalma) `name` alanı yok; kart başlığı
+/// artık [hospital].
 class BloodRequest {
   const BloodRequest({
-    required this.name,
+    required this.id,
     required this.bloodType,
     required this.hospital,
+    this.location,
+    this.description,
     this.urgent = false,
+    this.pointsReward = 0,
+    this.eligible,
+    this.applied = false,
   });
 
-  final String name;
+  /// `kanTalebiGuid` — başvuru/iptal çağrılarında kullanılıyor.
+  final String id;
 
-  /// Örn. "A Rh−".
+  /// Örn. "A+".
   final String bloodType;
   final String hospital;
+
+  /// Örn. "İstanbul".
+  final String? location;
+  final String? description;
   final bool urgent;
+
+  /// Bağış tamamlanınca verilecek puan.
+  final int pointsReward;
+
+  /// Kullanıcının kan grubu bu talebe uyuyor mu — kan grubu hiç
+  /// girilmediyse `null` ("kan grubunu ekle" yönlendirmesi gösterilir).
+  final bool? eligible;
+
+  /// Kullanıcı bu talebe zaten başvurmuş mu.
+  final bool applied;
 }
 
 /// Aile üyesi (Figma: `member-row` 205:474).
@@ -256,18 +269,18 @@ class UserCoupon {
   final String title;
   final String discountLabel;
 
-  /// `public.coupon_status`: active | used | expired | cancelled.
+  /// `/api/me/kuponlar`'ın `durum` alanı: AKTIF | KULLANILDI | SURESI_DOLDU.
+  /// İptal edilen kuponlar bu listede hiç gelmiyor (bkz. backend notu).
   final String status;
   final DateTime? expiresAt;
 
-  bool get isActive => status == 'active';
+  bool get isActive => status == 'AKTIF';
 
   /// Rozet metni — kullanıcının kuponu ne durumda olduğunu bir bakışta
   /// anlaması için.
   String get statusLabel => switch (status) {
-    'used' => 'Kullanıldı',
-    'expired' => 'Süresi doldu',
-    'cancelled' => 'İptal edildi',
+    'KULLANILDI' => 'Kullanıldı',
+    'SURESI_DOLDU' => 'Süresi doldu',
     _ => 'Aktif',
   };
 }

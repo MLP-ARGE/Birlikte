@@ -94,13 +94,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Ana Sayfa'), findsOneWidget);
-    // "Sana Özel" en üstte görünür — henüz kaydırılmadı.
-    expect(find.text('Sana Özel'), findsOneWidget);
+    // Hızlı erişim karosu en üstte görünür — henüz kaydırılmadı.
+    expect(find.text('Kuponlar'), findsOneWidget);
 
-    // Ana sayfayı öyle kaydır ki "Sana Özel" ekran dışına çıksın.
+    // Ana sayfayı öyle kaydır ki hızlı erişim karosu ekran dışına çıksın.
     await tester.drag(find.byType(ListView).first, const Offset(0, -400));
     await tester.pumpAndSettle();
-    expect(find.text('Sana Özel'), findsNothing);
+    expect(find.text('Kuponlar'), findsNothing);
 
     // Cüzdanım sekmesine geç — bir `pump()` yetmeli, push/pop animasyonu
     // yok; native tab bar'da olduğu gibi anında sekme değişir.
@@ -111,10 +111,11 @@ void main() {
     // gizli tutuyor ama sadece aktif olanı render ediyor değil, hepsi
     // Offstage değil — asıl kontrol scroll korunumu, altta doğrulanıyor).
 
-    // Ana Sayfa'ya geri dön — "Sana Özel" hâlâ görünmemeli (scroll korunmuş).
+    // Ana Sayfa'ya geri dön — hızlı erişim karosu hâlâ görünmemeli (scroll
+    // korunmuş).
     await tester.tap(find.text('Ana Sayfa'));
     await tester.pump();
     expect(find.text('Ana Sayfa'), findsOneWidget);
-    expect(find.text('Sana Özel'), findsNothing);
+    expect(find.text('Kuponlar'), findsNothing);
   });
 }

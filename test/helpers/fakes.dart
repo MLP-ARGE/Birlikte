@@ -1,6 +1,8 @@
 import 'package:birlikte/core/app_config/app_config_repository.dart';
 import 'package:birlikte/core/birlikte_api/birlikte_session_provider.dart';
 import 'package:birlikte/core/config/app_version_provider.dart';
+import 'package:birlikte/core/storage/secure_storage_service.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:birlikte/core/theme/app_institutions.dart';
 import 'package:birlikte/features/auth/application/verified_profile_provider.dart';
 import 'package:birlikte/features/auth/data/communication_preferences_repository.dart';
@@ -9,8 +11,8 @@ import 'package:birlikte/features/auth/data/profile_repository.dart';
 import 'package:birlikte/features/auth/domain/interest_category.dart';
 import 'package:birlikte/features/auth/domain/verified_profile.dart';
 import 'package:birlikte/features/auth/data/birlikte_auth_repository.dart';
+import 'package:birlikte/features/auth/presentation/kvkk_popup.dart';
 import 'package:birlikte/features/campaigns/data/campaign_repository.dart';
-import 'package:birlikte/features/campaigns/data/favorites_repository.dart';
 import 'package:birlikte/features/home/application/home_providers.dart';
 import 'package:birlikte/features/home/domain/home_models.dart';
 import 'package:birlikte/features/profile/data/profile_stats.dart';
@@ -124,24 +126,86 @@ class FakeCampaignRepository implements CampaignRepository {
       testCampaigns.firstWhere((c) => c.id == id);
 
   @override
-  Future<CampaignCoupon> createCoupon(String id) async =>
-      const CampaignCoupon(code: 'BRLKT-TEST1-TEST2', status: 'AKTIF');
+  Future<({bool alreadyExisted, CampaignCoupon coupon})> createCoupon(
+    String id,
+  ) async => (
+    alreadyExisted: false,
+    coupon: const CampaignCoupon(code: 'BRLKT-TEST1-TEST2', status: 'AKTIF'),
+  );
 
   @override
   Future<void> recordClick(String id) async {}
+
+  @override
+  Future<void> setFavorite(String id, bool favori) async {}
 }
 
-/// Cihaza yazmayan, bellekte tutan favori deposu.
-class _TestFavoritesRepository implements FavoritesRepository {
-  _TestFavoritesRepository(Set<String>? initial) : _ids = {...?initial};
+/// Bellekte tutan, platform kanalına (Keychain) hiç dokunmayan sahte oturum
+/// deposu.
+///
+/// Gerçek `SecureStorageService`, `flutter_secure_storage`'ın platform
+/// kanalını kullanıyor; widget testlerinde bu kanalın karşılığı yok ve
+/// çağrı SÜRESİZ asılı kalıyor (`MissingPluginException` fırlatmıyor,
+/// yanıt hiç gelmiyor). `sendKvkkOnayIfNeeded` gibi gerçek
+/// `birlikteApiClientProvider`'a dokunan kodlar testte bu yüzden
+/// tamamlanamazdı — bu sahte depo `readAccessToken()`'ı hemen `null`
+/// döndürüp zinciri hızlıca `BirlikteSessionExpiredException`'a düşürüyor.
+class _TestSecureStorageService extends SecureStorageService {
+  _TestSecureStorageService() : super(const FlutterSecureStorage());
 
-  Set<String> _ids;
+  String? _access;
+  String? _refresh;
 
   @override
-  Future<Set<String>> fetchIds() async => {..._ids};
+  Future<String?> readAccessToken() async => _access;
 
   @override
-  Future<void> save(Set<String> ids) async => _ids = {...ids};
+  Future<String?> readRefreshToken() async => _refresh;
+
+  @override
+  Future<void> saveTokens({
+    required String accessToken,
+    required String refreshToken,
+  }) async {
+    _access = accessToken;
+    _refresh = refreshToken;
+  }
+
+  @override
+  Future<void> clearSession() async {
+    _access = null;
+    _refresh = null;
+  }
+
+  @override
+  Future<String?> readDeviceId() async => 'test-device-id';
+
+  @override
+  Future<void> saveDeviceId(String id) async {}
+}
+
+/// `pendingKvkkOnayProvider`'ı sabit bir başlangıç değerine kilitler —
+/// gerçek `build()` her zaman `false`'tan başlar, testlerin "onay gerekli"
+/// senaryosunu da sınayabilmesi gerekiyor.
+class _TestPendingKvkkOnay extends PendingKvkkOnay {
+  _TestPendingKvkkOnay(this._initial);
+
+  final bool _initial;
+
+  @override
+  bool build() => _initial;
+}
+
+/// Favori kümesini sabit bir başlangıç değerine kilitler — gerçek `build()`
+/// kampanya listesini (ağa çıkmayan `FakeCampaignRepository` üzerinden olsa
+/// bile) beklerdi, testlerin bunu sabit ve anlık vermesi gerekiyor.
+class _TestFavoriteCampaignIds extends FavoriteCampaignIds {
+  _TestFavoriteCampaignIds(this._initial);
+
+  final Set<String> _initial;
+
+  @override
+  Future<Set<String>> build() async => _initial;
 }
 
 /// Ağa çıkmayan ilgi alanı deposu — katalog `interestCatalogProvider`
@@ -343,8 +407,16 @@ testOverrides({
   Set<String>? favorites,
   bool? loggedIn = true,
   List<String> missingInfo = const [],
+  // `WelcomePage._start()` kurum doğrulama + ilgi alanı seçimini yalnızca
+  // İLK girişte gösteriyor (`interestCount == 0` ise) — uçtan uca akış
+  // testi bunu 0 ile override edip gerçek bir ilk girişi simüle ediyor.
+  int? interestCount,
+  // Gerçek `pendingKvkkOnayProvider.build()` gibi varsayılan `false`: Welcome'da
+  // onay kutusu gizli, buton doğrudan aktif. `true` ilk giriş/yeniden onay
+  // senaryosunu (kutu görünür, KVKK popup'ı) simüle eder.
+  bool kvkkRequired = false,
 }) {
-  final profile = missingInfo.isEmpty
+  final profile = (missingInfo.isEmpty && interestCount == null)
       ? testProfile
       : VerifiedProfile(
           fullName: testProfile.fullName,
@@ -354,7 +426,7 @@ testOverrides({
           facility: testProfile.facility,
           employeeNo: testProfile.employeeNo,
           matchedAt: testProfile.matchedAt,
-          interestCount: testProfile.interestCount,
+          interestCount: interestCount ?? testProfile.interestCount,
           missingInfo: missingInfo,
         );
   return [
@@ -385,15 +457,17 @@ testOverrides({
   bloodRequestsAsyncProvider.overrideWith(
     (ref) async => const [
       BloodRequest(
-        name: 'A. Demir',
-        bloodType: 'A Rh−',
+        id: 'kan-talebi-1',
+        bloodType: 'A+',
         hospital: 'Çam Sakura Şehir Hastanesi',
+        location: 'İstanbul',
         urgent: true,
       ),
       BloodRequest(
-        name: 'E. Kaya',
-        bloodType: '0 Rh+',
+        id: 'kan-talebi-2',
+        bloodType: '0+',
         hospital: 'Liv Hospital Ulus',
+        location: 'Ankara',
       ),
     ],
   ),
@@ -404,6 +478,9 @@ testOverrides({
     ],
   ),
   couponsAsyncProvider.overrideWith((ref) async => const <UserCoupon>[]),
+  bloodTypeAsyncProvider.overrideWith((ref) async => 'A+'),
+  pendingKvkkOnayProvider.overrideWith(() => _TestPendingKvkkOnay(kvkkRequired)),
+  secureStorageProvider.overrideWithValue(_TestSecureStorageService()),
 
   // Router koruması ve widget'lar artık aynı tek kaynağı (gerçek koddaki
   // birlikteSessionProvider) okuyor; testte gerçek build()'in SecureStorage'a
@@ -416,10 +493,10 @@ testOverrides({
   birlikteAuthRepositoryProvider.overrideWith(FakeBirlikteAuthRepository.new),
   campaignRepositoryProvider.overrideWithValue(const FakeCampaignRepository()),
   campaignsProvider.overrideWithValue(testCampaigns),
-  // Favoriler artık cihaz-yerel (SharedPreferences); testte platform
-  // kanalına dokunmayan bellek-içi bir depoyla değiştiriliyor.
-  favoritesRepositoryProvider.overrideWithValue(
-    _TestFavoritesRepository(favorites),
+  // Favoriler artık sunucuda; testte sabit bir başlangıç kümesiyle
+  // değiştiriliyor (gerçek `build()` kampanya listesini beklerdi).
+  favoriteCampaignIdsProvider.overrideWith(
+    () => _TestFavoriteCampaignIds({...?favorites}),
   ),
   interestCatalogProvider.overrideWith((ref) async => testInterestCatalog),
   interestRepositoryProvider.overrideWithValue(const _TestInterestRepository()),

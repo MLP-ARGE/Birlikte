@@ -19,6 +19,13 @@ abstract final class Routes {
   static const kandas = '/kandas';
   static const profile = '/profil';
   static const communicationPreferences = '/bildirim-tercihleri';
+  static const favoriteCampaigns = '/favori-kampanyalar';
+
+  /// Profil → "İlgi alanların" — onboarding'deki ile AYNI ekran
+  /// ([InterestSelectionPage]), yalnızca `isEditing: true` ile açılıp
+  /// "Devam" yerine "Kaydet" gösteriyor ve bitince home'a değil geri
+  /// (profile) dönüyor.
+  static const editInterests = '/profil/ilgi-alanlari';
 
   /// Kampanya detayı — kök seviyede, alt navigasyonun dışında (Figma:
   /// `campaign-detail` 3:686'da bottom-nav yok, CTA bar en altta).

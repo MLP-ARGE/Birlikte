@@ -115,6 +115,20 @@ class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Home'daki "Tümünü Gör"/"Kampanya" karosu bu sayacı artırıyor — IndexedStack
+    // bu sayfayı canlı tuttuğu için filtreler kendiliğinden sıfırlanmaz,
+    // aksi halde buradan girenler önceki ziyaretten kalma filtreyle karşılaşır.
+    ref.listen(campaignsFilterResetProvider, (previous, next) {
+      if (previous != null && previous != next) {
+        setState(() {
+          _category = null;
+          _sort = _SortOption.recommended;
+          _query = '';
+          _searchController.clear();
+        });
+      }
+    });
+
     final all = ref.watch(campaignsProvider);
     final favorites = ref.watch(favoriteSlugsProvider);
     // build içinde: katalog birlikte-api'den asenkron geliyor, ilk kare boş

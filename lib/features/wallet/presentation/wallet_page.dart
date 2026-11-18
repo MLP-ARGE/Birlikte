@@ -11,8 +11,8 @@ import '../../home/presentation/widgets/points_card.dart';
 
 /// Cüzdanım — puan özeti ve kullanıcının kuponları.
 ///
-/// İçerik tamamen Supabase'den geliyor. Kupon yoksa uydurma satır
-/// göstermiyoruz; ekran kendi boş durumunu anlatıyor.
+/// İçerik `/api/me/puan` ve `/api/me/kuponlar`'dan. Kupon yoksa uydurma
+/// satır göstermiyoruz; ekran kendi boş durumunu anlatıyor.
 class WalletPage extends ConsumerWidget {
   const WalletPage({super.key});
 

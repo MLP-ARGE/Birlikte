@@ -20,13 +20,16 @@ import 'widgets/home_header.dart';
 import 'widgets/kandas_section.dart';
 import 'widgets/missing_info_sheet.dart';
 import 'widgets/points_card.dart';
-import 'widgets/promo_carousel.dart';
 import 'widgets/quick_tiles.dart';
 
 /// Ana sayfa (Figma: `home-page` 199:298).
 ///
-/// Bölümler: hızlı erişim, puan kartı, "Sana Özel", "Kampanyalar",
-/// "Kan İhtiyacı Olanlar", "Ailem". Alt navigasyon 5 sekme.
+/// Bölümler: hızlı erişim, puan kartı, "Kampanyalar", "Kan İhtiyacı
+/// Olanlar", "Ailem". Alt navigasyon 5 sekme.
+///
+/// "Sana Özel" bölümü kaldırıldı — gerçek kampanya kaydına karşılık
+/// gelmeyen, sabit kodlanmış iki örnek kartı gösteriyordu ("İncele"
+/// dokununca "Kampanya Bulunamadı" veriyordu).
 class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
@@ -59,12 +62,10 @@ class HomePage extends ConsumerWidget {
 
     final profile = ref.watch(verifiedProfileProvider);
     final points = ref.watch(pointsSummaryProvider);
-    final offers = ref.watch(promoOffersProvider);
     final campaigns = ref.watch(endingSoonCampaignsProvider);
     final requests = ref.watch(bloodRequestsProvider);
     final favorites = ref.watch(favoriteSlugsProvider);
     final members = ref.watch(familyMembersProvider);
-    final capacity = ref.watch(familyCapacityProvider);
 
     // Karuseller ekran kenarına kadar kaydığı için yatay boşluk bölüm bölüm
     // veriliyor, sayfanın tamamına değil.
@@ -72,6 +73,15 @@ class HomePage extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenH),
       child: child,
     );
+
+    // Kampanyalar sekmesi IndexedStack'te canlı kaldığından önceki
+    // ziyaretten kalma filtre/arama burada sıfırlanmazsa, buradan "Tümünü
+    // Gör"le girenler beklediği TÜM kampanyalar yerine eski filtreyle
+    // karşılaşır.
+    void goToAllCampaigns() {
+      ref.read(campaignsFilterResetProvider.notifier).bump();
+      context.go(Routes.campaigns);
+    }
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -100,7 +110,7 @@ class HomePage extends ConsumerWidget {
                         QuickTile(
                           label: 'Kampanya',
                           icon: AppIcons.ticketPercent,
-                          onTap: () => context.go(Routes.campaigns),
+                          onTap: goToAllCampaigns,
                         ),
                         QuickTile(
                           label: 'Kandaş',
@@ -121,26 +131,9 @@ class HomePage extends ConsumerWidget {
                   const SizedBox(height: _sectionGap),
                   inset(
                     BirlikteSectionHeader(
-                      title: 'Sana Özel',
-                      actionLabel: 'Tümünü Gör',
-                      onAction: () => context.go(Routes.campaigns),
-                    ),
-                  ),
-                  const SizedBox(height: _headerGap),
-                  PromoCarousel(
-                    offers: offers,
-                    onOfferTap: (offer) {
-                      if (offer.campaignId case final id?) {
-                        context.push(Routes.campaignDetail(id));
-                      }
-                    },
-                  ),
-                  const SizedBox(height: _sectionGap),
-                  inset(
-                    BirlikteSectionHeader(
                       title: 'Kampanyalar',
                       actionLabel: 'Tümünü Gör',
-                      onAction: () => context.go(Routes.campaigns),
+                      onAction: goToAllCampaigns,
                     ),
                   ),
                   const SizedBox(height: _headerGap),
@@ -153,11 +146,16 @@ class HomePage extends ConsumerWidget {
                         .toggle(id),
                   ),
                   const SizedBox(height: _sectionGap),
-                  inset(KandasSection(requests: requests)),
-                  const SizedBox(height: _sectionGap),
                   inset(
-                    AilemSection(members: members, capacity: capacity),
+                    KandasSection(
+                      requests: requests,
+                      onSeeAll: () => context.go(Routes.kandas),
+                      onSupport: (request) =>
+                          toggleBloodRequestApplication(ref, request),
+                    ),
                   ),
+                  const SizedBox(height: _sectionGap),
+                  inset(AilemSection(members: members)),
                 ],
               ),
             ),

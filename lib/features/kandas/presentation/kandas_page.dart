@@ -10,9 +10,9 @@ import '../../home/presentation/widgets/kandas_section.dart';
 
 /// Kandaş — açık kan bağışı talepleri.
 ///
-/// Talepler Supabase'den geliyor ve RLS gereği yalnızca `status = 'open'`
-/// olanlar görünüyor. Kayıt yoksa ekran boş durumunu gösteriyor; uydurma
-/// talep göstermiyoruz.
+/// Talepler `/api/kan-talepleri`'nden gelir, sunucu zaten yalnızca açık
+/// olanları döner. Kayıt yoksa ekran boş durumunu gösteriyor; uydurma talep
+/// göstermiyoruz.
 class KandasPage extends ConsumerWidget {
   const KandasPage({super.key});
 
@@ -55,15 +55,15 @@ class KandasPage extends ConsumerWidget {
               ),
               // Ana sayfadaki bölümle aynı bileşen: aynı veri iki yerde
               // farklı görünmesin.
-              AsyncData(:final value) => KandasSection(requests: value),
-            },
-            const SizedBox(height: AppSpacing.s6),
-            Text(
-              'Tüm talepler ilgili hastaneler tarafından doğrulanır.',
-              style: AppTypography.caption.copyWith(
-                color: AppColors.textTertiary,
+              // `KandasSection` bu durumda kendi "Tüm talepler ilgili
+              // hastaneler tarafından doğrulanır." notunu zaten gösteriyor
+              // — burada tekrar etmiyoruz.
+              AsyncData(:final value) => KandasSection(
+                requests: value,
+                onSupport: (request) =>
+                    toggleBloodRequestApplication(ref, request),
               ),
-            ),
+            },
           ],
         ),
       ),

@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart' show Icons;
 import 'package:flutter/widgets.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -41,6 +42,12 @@ abstract final class AppIcons {
   static const IconData mail = LucideIcons.mail300;
   static const IconData messageSquare = LucideIcons.messageSquare300;
   static const IconData heart = LucideIcons.heart300;
+
+  /// Favori kampanya durumu için — Lucide saf çizgi (stroke) olduğundan
+  /// "favoride" halini yalnızca renk değil, dolu bir şekille de ayırt etmek
+  /// için Material'ın dolu kalbi kullanılıyor (bkz. kampanya kartı/detayı
+  /// favori düğmesi).
+  static const IconData heartFilled = Icons.favorite;
   static const IconData plus = LucideIcons.plus300;
   static const IconData gift = LucideIcons.gift300;
   static const IconData search = LucideIcons.search300;

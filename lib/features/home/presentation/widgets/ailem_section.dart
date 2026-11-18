@@ -8,23 +8,14 @@ import '../../../../shared/widgets/birlikte_section_header.dart';
 import '../../domain/home_models.dart';
 
 /// "Ailem" bölümü (Figma: `ailem-section` 205:464).
+///
+/// Yakın ekleme akışı henüz yok (bkz. eski `_AddRow`) — ölü bir düğme
+/// bırakmaktansa bölüm yalnızca mevcut yakınları listeliyor.
 class AilemSection extends StatelessWidget {
-  const AilemSection({
-    super.key,
-    required this.members,
-    required this.capacity,
-    this.onMemberTap,
-    this.onAddMember,
-  });
+  const AilemSection({super.key, required this.members, this.onMemberTap});
 
   final List<FamilyMember> members;
-
-  /// Eklenebilecek azami yakın sayısı — Figma'da "2/3" olarak gösteriliyor.
-  final int capacity;
   final ValueChanged<FamilyMember>? onMemberTap;
-  final VoidCallback? onAddMember;
-
-  bool get _canAdd => members.length < capacity;
 
   @override
   Widget build(BuildContext context) {
@@ -61,14 +52,6 @@ class AilemSection extends StatelessWidget {
                   onTap: onMemberTap == null
                       ? null
                       : () => onMemberTap!(member),
-                ),
-              ],
-              if (_canAdd) ...[
-                const _RowDivider(),
-                _AddRow(
-                  count: members.length,
-                  capacity: capacity,
-                  onTap: onAddMember,
                 ),
               ],
             ],
@@ -160,68 +143,6 @@ class _MemberRow extends StatelessWidget {
               color: AppColors.textTertiary,
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// "Yeni yakın ekle" satırı (Figma: `add-row` 205:494).
-class _AddRow extends StatelessWidget {
-  const _AddRow({
-    required this.count,
-    required this.capacity,
-    required this.onTap,
-  });
-
-  final int count;
-  final int capacity;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Padding(
-          padding: _rowPadding,
-          child: Row(
-            children: [
-              const DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceBrand,
-                  shape: BoxShape.circle,
-                ),
-                child: SizedBox.square(
-                  dimension: _avatarSize,
-                  child: Center(
-                    child: Icon(
-                      AppIcons.plus,
-                      size: 20,
-                      color: AppColors.iconBrand,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: _rowGap),
-              Expanded(
-                child: Text(
-                  'Yeni yakın ekle',
-                  style: AppTypography.labelLarge.copyWith(
-                    color: AppColors.textBrand,
-                  ),
-                ),
-              ),
-              Text(
-                '$count/$capacity',
-                style: AppTypography.caption.copyWith(
-                  color: AppColors.textTertiary,
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );

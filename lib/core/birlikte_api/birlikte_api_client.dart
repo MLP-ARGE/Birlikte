@@ -440,20 +440,82 @@ class BirlikteApiClient {
     );
   }
 
+  // ------------------------------------------------------------ favoriler
+
+  /// Zaten favoriyse de sunucu aynı başarılı yanıtı döner — çağıran tarafın
+  /// önce kontrol etmesine gerek yok.
+  Future<void> favoriKampanyaEkle(String kampanyaGuid) async {
+    await _authorized(
+      (token) => _http.put(
+        _uri('/api/kampanyalar/$kampanyaGuid/favori'),
+        headers: {'Authorization': 'Bearer $token'},
+      ),
+    );
+  }
+
+  /// Favori değilse de sunucu aynı başarılı yanıtı döner.
+  Future<void> favoriKampanyaCikar(String kampanyaGuid) async {
+    await _authorized(
+      (token) => _http.delete(
+        _uri('/api/kampanyalar/$kampanyaGuid/favori'),
+        headers: {'Authorization': 'Bearer $token'},
+      ),
+    );
+  }
+
   // --------------------------------------------------- kupon, puan, kan bağışı
 
   /// Kupon kodu üretir (ya da aynı kampanyadan daha önce alınmışsa aynısını
   /// döner — `KUPON_MEVCUT`). Hata kodları: `KUPON_YOK` (400),
   /// `KAMPANYA_BULUNAMADI` (404), `KOTA_DOLDU` (409), `YETERSIZ_PUAN`
   /// (409, `veri`: `bakiye`/`gereken`).
-  Future<Map<String, dynamic>> kuponAl(String kampanyaGuid) async {
-    final veri = await _authorized(
-      (token) => _http.post(
-        _uri('/api/kampanyalar/$kampanyaGuid/kupon'),
-        headers: {'Authorization': 'Bearer $token'},
-      ),
-    );
-    return veri as Map<String, dynamic>;
+  ///
+  /// `responseCode` de döndürülüyor (`_unwrap`'ın aksine) — çağıran taraf
+  /// `KUPON_MEVCUT` ile `KUPON_OLUSTURULDU`'yu ayırt edip "zaten kuponun var"
+  /// ile "kuponun hazır" mesajlarını doğru göstermeli (backend'in mobil
+  /// kuralı).
+  Future<(String responseCode, Map<String, dynamic> veri)> kuponAl(
+    String kampanyaGuid,
+  ) async {
+    final token0 = await _storage.readAccessToken();
+    if (token0 == null) {
+      throw const BirlikteSessionExpiredException('OTURUM_YOK');
+    }
+    try {
+      var token = token0;
+      var res = await _http
+          .post(
+            _uri('/api/kampanyalar/$kampanyaGuid/kupon'),
+            headers: {'Authorization': 'Bearer $token'},
+          )
+          .timeout(AppConfig.connectTimeout);
+      if (res.statusCode == 401) {
+        token = await _refreshToken();
+        res = await _http
+            .post(
+              _uri('/api/kampanyalar/$kampanyaGuid/kupon'),
+              headers: {'Authorization': 'Bearer $token'},
+            )
+            .timeout(AppConfig.connectTimeout);
+      }
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final status = body['responseStatus'] as bool? ?? false;
+      if (!status) {
+        throw BirlikteApiException(
+          body['responseCode'] as String? ?? 'BILINMEYEN',
+          body['responseMessage'] as String? ?? '',
+          httpStatus: res.statusCode,
+          veri: body['veri'] as Map<String, dynamic>?,
+        );
+      }
+      return (
+        body['responseCode'] as String? ?? 'TAMAM',
+        body['veri'] as Map<String, dynamic>,
+      );
+    } on BirlikteSessionExpiredException {
+      _onSessionExpired?.call();
+      rethrow;
+    }
   }
 
   Future<List<dynamic>> kuponlarim() async {

@@ -11,14 +11,22 @@ import '../../../shared/widgets/birlikte_app_bar.dart';
 import '../../../shared/widgets/birlikte_button.dart';
 import '../../../shared/widgets/birlikte_chip.dart';
 import '../data/interest_repository.dart';
+import '../data/profile_repository.dart';
 import '../domain/interest_category.dart';
 
 /// İlgi alanı seçimi (Figma: `interest-selection` 3:1829).
 ///
 /// Katalog `GET /api/ilgi-alanlari`'den geliyor (13 sabit kayıt); daha önce
 /// seçilmiş olanlar (`secili: true`) başlangıçta işaretli geliyor.
+///
+/// Onboarding'de VE Profil → "İlgi alanların"ndan açılan AYNI ekran —
+/// [isEditing] yalnızca bitiş davranışını değiştiriyor: onboarding'de
+/// "Devam" deyip home'a gider, profilden açıldığında "Kaydet" deyip geri
+/// döner.
 class InterestSelectionPage extends ConsumerStatefulWidget {
-  const InterestSelectionPage({super.key});
+  const InterestSelectionPage({super.key, this.isEditing = false});
+
+  final bool isEditing;
 
   @override
   ConsumerState<InterestSelectionPage> createState() =>
@@ -43,13 +51,22 @@ class _InterestSelectionPageState
     if (!_selected.remove(id)) _selected.add(id);
   });
 
-  /// Onboarding akışının sonu — yığın temizlenir, geri tuşu buraya dönmez.
+  /// Onboarding'de akışın sonu — yığın temizlenir, geri tuşu buraya
+  /// dönmez. Profilden düzenlerken bunun yerine geri dönülür.
   Future<void> _finish() async {
     setState(() => _saving = true);
     try {
       await ref.read(interestRepositoryProvider).save(_selected.toList());
       if (!mounted) return;
-      context.go(Routes.home);
+      if (widget.isEditing) {
+        // Profil kartındaki sayaç ("İlgi alanların N kategori") ve
+        // kampanyalardaki "sana özel" eşleşmesi bayat kalmasın.
+        ref.invalidate(profileProvider);
+        ref.invalidate(interestCatalogProvider);
+        context.pop();
+      } else {
+        context.go(Routes.home);
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -72,7 +89,7 @@ class _InterestSelectionPageState
           children: [
             BirlikteAppBar(
               onBack: context.canPop() ? context.pop : null,
-              onClose: () => context.go(Routes.login),
+              onClose: widget.isEditing ? null : () => context.go(Routes.login),
             ),
             Expanded(
               child: switch (catalogAsync) {
@@ -91,7 +108,7 @@ class _InterestSelectionPageState
                 _bottomInset,
               ),
               child: BirlikteButton(
-                label: 'Devam',
+                label: widget.isEditing ? 'Kaydet' : 'Devam',
                 isLoading: _saving,
                 onPressed: (_enough && !_saving) ? _finish : null,
               ),
