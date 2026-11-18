@@ -76,9 +76,8 @@ class _CampaignDetailPageState extends ConsumerState<CampaignDetailPage> {
             height: _heroHeight,
             isFavorite: isFavorite,
             onBack: () => context.pop(),
-            onFavoriteTap: () => ref
-                .read(favoriteCampaignIdsProvider.notifier)
-                .toggle(campaign.id),
+            onFavoriteTap: () =>
+                toggleCampaignFavorite(context, ref, campaign.id),
           ),
           Expanded(
             child: SingleChildScrollView(
@@ -130,9 +129,8 @@ class _CampaignDetailPageState extends ConsumerState<CampaignDetailPage> {
                   const SizedBox(height: AppSpacing.s7),
                   _SecondaryActions(
                     isFavorite: isFavorite,
-                    onFavoriteTap: () => ref
-                        .read(favoriteCampaignIdsProvider.notifier)
-                        .toggle(campaign.id),
+                    onFavoriteTap: () =>
+                        toggleCampaignFavorite(context, ref, campaign.id),
                   ),
                 ],
               ),

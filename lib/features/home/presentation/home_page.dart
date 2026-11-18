@@ -141,9 +141,8 @@ class HomePage extends ConsumerWidget {
                     campaigns: campaigns,
                     height: _campaignCarouselHeight,
                     favorites: favorites,
-                    onToggleFavorite: (id) => ref
-                        .read(favoriteCampaignIdsProvider.notifier)
-                        .toggle(id),
+                    onToggleFavorite: (id) =>
+                        toggleCampaignFavorite(context, ref, id),
                   ),
                   const SizedBox(height: _sectionGap),
                   inset(

@@ -194,9 +194,8 @@ class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
                           imageHeight: 198,
                           isFavorite: favorites.contains(campaign.id),
                           onTap: () => _openCampaign(campaign),
-                          onFavoriteTap: () => ref
-                              .read(favoriteCampaignIdsProvider.notifier)
-                              .toggle(campaign.id),
+                          onFavoriteTap: () =>
+                              toggleCampaignFavorite(context, ref, campaign.id),
                         );
                       },
                     ),

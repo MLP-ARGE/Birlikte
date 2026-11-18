@@ -61,9 +61,8 @@ class FavoriteCampaignsPage extends ConsumerWidget {
                           isFavorite: favoriteIds.contains(campaign.id),
                           onTap: () =>
                               context.push(Routes.campaignDetail(campaign.id)),
-                          onFavoriteTap: () => ref
-                              .read(favoriteCampaignIdsProvider.notifier)
-                              .toggle(campaign.id),
+                          onFavoriteTap: () =>
+                              toggleCampaignFavorite(context, ref, campaign.id),
                         );
                       },
                     ),

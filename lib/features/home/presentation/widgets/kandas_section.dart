@@ -1,11 +1,23 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/birlikte_api/birlikte_api_client.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_dimens.dart';
 import '../../../../core/theme/app_icons.dart';
 import '../../../../core/theme/app_typography.dart';
+import '../../../../shared/widgets/birlikte_alert_dialog.dart';
 import '../../../../shared/widgets/birlikte_section_header.dart';
 import '../../domain/home_models.dart';
+
+/// Başvuru/iptal isteği başarısız olursa (`KAN_GRUBU_UYGUN_DEGIL`,
+/// `KAN_GRUBU_YOK`...) gösterilecek, ekrana özel çeviriler.
+const _bloodErrorOverrides = {
+  'KAN_GRUBU_YOK': 'Başvurabilmek için önce profilinden kan grubunu eklemen '
+      'gerekiyor.',
+  'KAN_GRUBU_UYGUN_DEGIL': 'Kan grubun bu talebe uygun değil.',
+  'KAN_TALEBI_BULUNAMADI': 'Bu talep artık mevcut değil.',
+  'KAN_BASVURU_BULUNAMADI': 'İptal edilecek bir başvurun yok.',
+};
 
 /// "Kan İhtiyacı Olanlar" bölümü (Figma: `kandas-section` 205:427).
 class KandasSection extends StatelessWidget {
@@ -18,7 +30,11 @@ class KandasSection extends StatelessWidget {
 
   final List<BloodRequest> requests;
   final VoidCallback? onSeeAll;
-  final ValueChanged<BloodRequest>? onSupport;
+
+  /// Başvuru/iptal isteğini yapar. Hata fırlatırsa (`BirlikteApiException`
+  /// ya da ağ hatası) burası yakalayıp kullanıcıya popup gösterir — çağıran
+  /// taraf (`HomePage`/`KandasPage`) ayrıca try/catch yazmaz.
+  final Future<void> Function(BloodRequest)? onSupport;
 
   @override
   Widget build(BuildContext context) {
@@ -54,12 +70,7 @@ class KandasSection extends StatelessWidget {
                     thickness: 1,
                     color: AppColors.borderDefault,
                   ),
-                _RequestRow(
-                  request: request,
-                  onSupport: onSupport == null
-                      ? null
-                      : () => onSupport!(request),
-                ),
+                _RequestRow(request: request, onSupport: onSupport),
               ],
             ],
           ),
@@ -78,9 +89,25 @@ class _RequestRow extends StatelessWidget {
   const _RequestRow({required this.request, required this.onSupport});
 
   final BloodRequest request;
-  final VoidCallback? onSupport;
+  final Future<void> Function(BloodRequest)? onSupport;
 
   static const _badgeSize = 44.0;
+
+  Future<void> _handleSupport(BuildContext context) async {
+    try {
+      await onSupport!(request);
+    } on BirlikteApiException catch (e) {
+      if (!context.mounted) return;
+      await showBirlikteApiErrorAlert(
+        context,
+        e,
+        codeOverrides: _bloodErrorOverrides,
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      await showBirlikteApiErrorAlert(context, e);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -149,7 +176,10 @@ class _RequestRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 14),
-          _SupportButton(applied: request.applied, onTap: onSupport),
+          _SupportButton(
+            applied: request.applied,
+            onTap: onSupport == null ? null : () => _handleSupport(context),
+          ),
         ],
       ),
     );

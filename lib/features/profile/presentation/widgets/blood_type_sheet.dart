@@ -127,12 +127,16 @@ class _BloodTypeSheetState extends ConsumerState<_BloodTypeSheet> {
       ref.invalidate(bloodRequestsAsyncProvider);
       if (!mounted) return;
       Navigator.pop(context);
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      await showBirlikteAlert(
+      await showBirlikteApiErrorAlert(
         context,
+        e,
         title: 'Kaydedilemedi',
-        message: 'Lütfen tekrar dene.',
+        codeOverrides: const {
+          'ACIK_RIZA_GEREKLI': 'Kaydetmek için açık rıza onayını '
+              'işaretlemen gerekiyor.',
+        },
       );
     } finally {
       if (mounted) setState(() => _saving = false);

@@ -1,6 +1,8 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_institutions.dart';
+import '../../../shared/widgets/birlikte_alert_dialog.dart';
 import '../../campaigns/data/campaign_repository.dart';
 import '../data/home_repository.dart';
 import '../domain/home_models.dart';
@@ -97,6 +99,27 @@ class FavoriteCampaignIds extends AsyncNotifier<Set<String>> {
 final favoriteSlugsProvider = Provider<Set<String>>(
   (ref) => ref.watch(favoriteCampaignIdsProvider).value ?? const {},
 );
+
+/// Favori ekleme/çıkarma isteğini yapar; hata fırlatırsa (ağ hatası ya da
+/// sunucu reddi) kullanıcıya popup gösterir — çağıran ekranlar
+/// (`HomePage`, `CampaignsListPage`, `CampaignDetailPage`,
+/// `FavoriteCampaignsPage`) ayrıca try/catch yazmaz.
+Future<void> toggleCampaignFavorite(
+  BuildContext context,
+  WidgetRef ref,
+  String campaignId,
+) async {
+  try {
+    await ref.read(favoriteCampaignIdsProvider.notifier).toggle(campaignId);
+  } catch (e) {
+    if (!context.mounted) return;
+    await showBirlikteApiErrorAlert(
+      context,
+      e,
+      title: 'Favori güncellenemedi',
+    );
+  }
+}
 
 /// "Favori kampanyalarım" ekranı — tüm kampanya listesinden (tek kaynak)
 /// favori olanlar süzülüyor; ayrı bir `/favoriler` çağrısı yapılmıyor, aksi

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/birlikte_api/birlikte_api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_dimens.dart';
 import '../../core/theme/app_typography.dart';
@@ -38,6 +39,28 @@ Future<void> showBirlikteAlert(
       ],
     ),
   );
+}
+
+/// Bir API çağrısı (`BirlikteApiException`) ya da ağ hatası sessizce
+/// yutulmak yerine bu diyalogla kullanıcıya gösterilsin diye tek yer.
+///
+/// `BirlikteApiException` ise önce [codeOverrides]'a (ekrana özel, daha
+/// anlaşılır bir çeviri varsa) bakılır, yoksa sunucunun kendi mesajı
+/// kullanılır — zaten kullanıcıya gösterilmek üzere yazılmış durumda.
+/// Başka bir hata (ağ kopması, zaman aşımı) ise genel bir mesaj gösterilir.
+Future<void> showBirlikteApiErrorAlert(
+  BuildContext context,
+  Object error, {
+  String title = 'İşlem tamamlanamadı',
+  Map<String, String> codeOverrides = const {},
+}) {
+  final message = switch (error) {
+    BirlikteApiException(:final code, :final message) =>
+      codeOverrides[code] ??
+          (message.isNotEmpty ? message : 'Lütfen tekrar dene.'),
+    _ => 'Lütfen tekrar dene.',
+  };
+  return showBirlikteAlert(context, title: title, message: message);
 }
 
 /// Onay/iptal gerektiren diyaloglar (ör. çıkış yap) — aynı görsel standart,
