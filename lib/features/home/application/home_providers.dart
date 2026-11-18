@@ -158,16 +158,24 @@ Future<void> toggleBloodRequestApplication(
   ref.invalidate(bloodRequestsAsyncProvider);
 }
 
-/// Oturum sahibinin kan grubu — `/api/me/kan-grubu`'ndan, hiç girilmediyse
-/// `null`. Profil ekranında düzenlenebiliyor.
-final bloodTypeAsyncProvider = FutureProvider<String?>((ref) async {
-  return ref.watch(homeRepositoryProvider).fetchBloodType();
-});
-
 /// Kullanıcının kuponları — `/api/me/kuponlar`'dan.
 final couponsAsyncProvider = FutureProvider<List<UserCoupon>>((ref) async {
   return ref.watch(homeRepositoryProvider).fetchCoupons();
 });
+
+/// Cüzdanım ekranına HER girişte kuponları/puanı sunucudan tazeler.
+///
+/// `WalletPage` `IndexedStack`'te canlı kaldığından (bottom-nav sekmesi),
+/// tek seferlik `initState` bazlı bir yenileme ekrana her dönüşte
+/// çalışmaz — bu yüzden ekrana giden HER yol (sekme dokunuşu, hızlı
+/// erişim karoları, puan kartı) buraya giderken bunu çağırıyor. Aksi
+/// halde başka bir yerden (müşteri hizmetleri, kampanya süresi dolması)
+/// iptal/değişen bir kupon, kullanıcı ekrana tekrar gelene kadar bayat
+/// listede kalırdı.
+void refreshWalletData(WidgetRef ref) {
+  ref.invalidate(couponsAsyncProvider);
+  ref.invalidate(pointsSummaryAsyncProvider);
+}
 
 /// Kullanıcının yakınları — birlikte-api `/api/me/yakinlar`'dan.
 final familyMembersAsyncProvider =

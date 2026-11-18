@@ -83,6 +83,14 @@ class HomePage extends ConsumerWidget {
       context.go(Routes.campaigns);
     }
 
+    // Cüzdanım da IndexedStack'te canlı kalıyor — her girişte kuponlar/puan
+    // tazelenmezse, başka yerden iptal edilen bir kupon burada bayat
+    // görünmeye devam eder (bkz. `refreshWalletData`).
+    void goToWallet() {
+      refreshWalletData(ref);
+      context.go(Routes.wallet);
+    }
+
     return Scaffold(
       backgroundColor: AppColors.surface,
       body: SafeArea(
@@ -100,12 +108,12 @@ class HomePage extends ConsumerWidget {
                         QuickTile(
                           label: 'Kuponlar',
                           icon: AppIcons.ticket,
-                          onTap: () => context.go(Routes.wallet),
+                          onTap: goToWallet,
                         ),
                         QuickTile(
                           label: 'Puanlar',
                           icon: AppIcons.sparkles,
-                          onTap: () => context.go(Routes.wallet),
+                          onTap: goToWallet,
                         ),
                         QuickTile(
                           label: 'Kampanya',
@@ -124,8 +132,8 @@ class HomePage extends ConsumerWidget {
                   inset(
                     PointsCard(
                       summary: points,
-                      onTap: () => context.go(Routes.wallet),
-                      onSpendTap: () => context.go(Routes.wallet),
+                      onTap: goToWallet,
+                      onSpendTap: goToWallet,
                     ),
                   ),
                   const SizedBox(height: _sectionGap),

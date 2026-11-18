@@ -18,7 +18,6 @@ import '../../../shared/widgets/birlikte_institution_badge.dart';
 import '../../auth/application/verified_profile_provider.dart';
 import '../../auth/data/birlikte_auth_repository.dart';
 import '../../auth/domain/verified_profile.dart';
-import '../../home/application/home_providers.dart';
 import '../data/profile_stats.dart';
 import 'widgets/blood_type_sheet.dart';
 import 'widgets/settings_tile.dart';
@@ -104,11 +103,10 @@ class ProfilePage extends ConsumerWidget {
                 SettingsTile(
                   icon: AppIcons.droplet,
                   label: 'Kan grubu',
-                  value: ref.watch(bloodTypeAsyncProvider).value ?? 'Ekle',
-                  onTap: () => showBloodTypeSheet(
-                    context,
-                    ref.read(bloodTypeAsyncProvider).value,
-                  ),
+                  // `/api/me`'nin kendi alanından — ayrı bir uca çıkıp ayrı
+                  // bir önbellek tutmuyoruz (bkz. `VerifiedProfile.bloodType`).
+                  value: profile.bloodType ?? 'Ekle',
+                  onTap: () => showBloodTypeSheet(context, profile.bloodType),
                 ),
               ],
             ),

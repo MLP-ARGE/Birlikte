@@ -544,18 +544,10 @@ class BirlikteApiClient {
     return veri as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>?> kanGrubum() async {
-    final veri = await _authorized(
-      (token) => _http.get(
-        _uri('/api/me/kan-grubu'),
-        headers: {'Authorization': 'Bearer $token'},
-      ),
-    );
-    return veri as Map<String, dynamic>?;
-  }
-
-  /// Silmek için `kanGrubu: null` gönderilir. Kan grubu özel nitelikli
-  /// kişisel veri olduğundan kaydederken `acikRiza: true` zorunlu.
+  /// Okuma ayrı bir uca çıkmıyor — `/api/me` zaten `kanGrubu` alanını
+  /// veriyor (bkz. `ProfileRepository`). Silmek için `kanGrubu: null`
+  /// gönderilir. Kan grubu özel nitelikli kişisel veri olduğundan
+  /// kaydederken `acikRiza: true` zorunlu.
   Future<void> kanGrubuKaydet({required String? kanGrubu, bool acikRiza = true}) async {
     await _authorized(
       (token) => _http.put(

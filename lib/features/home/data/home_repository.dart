@@ -38,13 +38,8 @@ class HomeRepository {
   Future<void> cancelBloodRequestApplication(String kanTalebiGuid) =>
       _api.kanBasvurusunuGeriCek(kanTalebiGuid);
 
-  /// `null` dönerse kullanıcı hiç kan grubu girmemiş.
-  Future<String?> fetchBloodType() async {
-    final veri = await _api.kanGrubum();
-    return veri?['kanGrubu'] as String?;
-  }
-
-  /// Silmek için `null` gönder.
+  /// Silmek için `null` gönder. Okuma ayrı bir uca çıkmıyor — `/api/me`
+  /// zaten `kanGrubu` alanını veriyor (bkz. `VerifiedProfile.bloodType`).
   Future<void> saveBloodType(String? kanGrubu) =>
       _api.kanGrubuKaydet(kanGrubu: kanGrubu);
 

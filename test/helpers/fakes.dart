@@ -390,6 +390,7 @@ final testProfile = VerifiedProfile(
   employeeNo: 'MP-984302',
   matchedAt: DateTime(2026, 7, 8),
   interestCount: 6,
+  bloodType: 'A+',
 );
 
 /// Testlerin ağa çıkmadan çalışmasını sağlayan provider değiştirmeleri.
@@ -428,6 +429,7 @@ testOverrides({
           matchedAt: testProfile.matchedAt,
           interestCount: interestCount ?? testProfile.interestCount,
           missingInfo: missingInfo,
+          bloodType: testProfile.bloodType,
         );
   return [
   // Sürüm paket üst verisinden okunuyor; testte platform eklentisi yok.
@@ -478,7 +480,6 @@ testOverrides({
     ],
   ),
   couponsAsyncProvider.overrideWith((ref) async => const <UserCoupon>[]),
-  bloodTypeAsyncProvider.overrideWith((ref) async => 'A+'),
   pendingKvkkOnayProvider.overrideWith(() => _TestPendingKvkkOnay(kvkkRequired)),
   secureStorageProvider.overrideWithValue(_TestSecureStorageService()),
 

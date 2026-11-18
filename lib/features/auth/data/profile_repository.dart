@@ -51,6 +51,7 @@ class ProfileRepository {
       email: row['eposta'] as String?,
       personType: row['kayitTipi'] as String?,
       interestCount: ilgiAlanlari.length,
+      bloodType: row['kanGrubu'] as String?,
       missingInfo: (row['eksikBilgiler'] as List<dynamic>? ?? const [])
           .cast<String>(),
     );

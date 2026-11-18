@@ -8,6 +8,7 @@ import '../../../../shared/widgets/birlikte_alert_dialog.dart';
 import '../../../../shared/widgets/birlikte_button.dart';
 import '../../../../shared/widgets/birlikte_checkbox.dart';
 import '../../../../shared/widgets/birlikte_chip.dart';
+import '../../../auth/data/profile_repository.dart';
 import '../../../home/application/home_providers.dart';
 import '../../../home/data/home_repository.dart';
 
@@ -123,7 +124,10 @@ class _BloodTypeSheetState extends ConsumerState<_BloodTypeSheet> {
     setState(() => _saving = true);
     try {
       await ref.read(homeRepositoryProvider).saveBloodType(_selected);
-      ref.invalidate(bloodTypeAsyncProvider);
+      // Kan grubu artık `/api/me`'nin kendi alanı (bkz.
+      // `VerifiedProfile.bloodType`) — ayrı bir önbellek değil, profili
+      // yeniden çekmek yeterli.
+      ref.invalidate(profileProvider);
       ref.invalidate(bloodRequestsAsyncProvider);
       if (!mounted) return;
       Navigator.pop(context);

@@ -21,6 +21,7 @@ class VerifiedProfile {
     this.theme = 'system',
     this.interestCount = 0,
     this.missingInfo = const [],
+    this.bloodType,
   });
 
   final String fullName;
@@ -76,6 +77,12 @@ class VerifiedProfile {
   /// olabilir. Giriş engellemez (yalnızca doğum tarihi/telefon engeller),
   /// bu üçü giriş yapıldıktan sonra tamamlanır/bildirilir.
   final List<String> missingInfo;
+
+  /// `/api/me`'nin `kanGrubu` alanı — hiç girilmediyse `null`. Ayrı bir
+  /// uçtan (`GET /api/me/kan-grubu`) ÇEKİLMİYOR: bu, [profileProvider] ile
+  /// aynı kaynaktan geliyor, aksi halde hesap değişince iki ayrı önbellek
+  /// birbirinden bağımsız bayatlayıp karışabilirdi.
+  final String? bloodType;
 
   /// Kullanıcının kendisinin tamamlayabileceği tek alan — diğer ikisi (ad,
   /// soyad) kurum kaydından düzeltilir, uygulamadan değiştirilemez.
