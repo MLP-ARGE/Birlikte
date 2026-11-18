@@ -18,11 +18,34 @@ class CampaignRepository {
   static const _pageSize = 100;
   static const _maxPages = 20;
 
-  Future<List<Campaign>> fetchAll() async {
+  /// [ilgiAlaniId] tek bir kategoriye, [sadeceIlgili] kullanıcının seçtiği
+  /// TÜM ilgi alanlarına göre sunucu taraflı filtreler — istemci ayrıca
+  /// filtrelemiyor. Üst seviye `ilgiAlanlari` kataloğu ve
+  /// `seciliIlgiAlaniSayisi` yalnızca ilk sayfadan okunuyor, sayfalar
+  /// arasında değişmiyor.
+  Future<CampaignsFeed> fetchAll({
+    int? ilgiAlaniId,
+    bool sadeceIlgili = false,
+  }) async {
     final campaigns = <Campaign>[];
+    var categories = const <CampaignCategoryOption>[];
+    var selectedInterestCount = 0;
     var sayfa = 1;
     while (sayfa <= _maxPages) {
-      final veri = await _api.kampanyalar(sayfa: sayfa, sayfaBoyutu: _pageSize);
+      final veri = await _api.kampanyalar(
+        sayfa: sayfa,
+        sayfaBoyutu: _pageSize,
+        ilgiAlaniId: ilgiAlaniId,
+        sadeceIlgili: sadeceIlgili ? true : null,
+      );
+      if (sayfa == 1) {
+        categories = (veri['ilgiAlanlari'] as List<dynamic>? ?? [])
+            .cast<Map<String, dynamic>>()
+            .map(_categoryFromRow)
+            .toList();
+        selectedInterestCount =
+            (veri['seciliIlgiAlaniSayisi'] as num?)?.toInt() ?? 0;
+      }
       final rows = (veri['kampanyalar'] as List<dynamic>? ?? [])
           .cast<Map<String, dynamic>>();
       campaigns.addAll(rows.map(_fromListRow));
@@ -30,8 +53,20 @@ class CampaignRepository {
       if (campaigns.length >= toplam || rows.isEmpty) break;
       sayfa++;
     }
-    return campaigns;
+    return CampaignsFeed(
+      campaigns: campaigns,
+      categories: categories,
+      selectedInterestCount: selectedInterestCount,
+    );
   }
+
+  static CampaignCategoryOption _categoryFromRow(Map<String, dynamic> row) =>
+      CampaignCategoryOption(
+        id: (row['ilgiAlaniId'] as num).toInt(),
+        ad: (row['ad'] as String?) ?? '',
+        ikon: row['ikon'] as String?,
+        secili: row['secili'] as bool? ?? false,
+      );
 
   Future<Campaign> fetchDetail(String kampanyaGuid) async {
     final veri = await _api.kampanyaDetay(kampanyaGuid);

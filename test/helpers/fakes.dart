@@ -15,6 +15,8 @@ import 'package:birlikte/features/auth/presentation/kvkk_popup.dart';
 import 'package:birlikte/features/campaigns/data/campaign_repository.dart';
 import 'package:birlikte/features/home/application/home_providers.dart';
 import 'package:birlikte/features/home/domain/home_models.dart';
+import 'package:birlikte/features/notifications/data/notification_repository.dart';
+import 'package:birlikte/features/notifications/domain/notification.dart';
 import 'package:birlikte/features/profile/data/profile_stats.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -118,8 +120,27 @@ class _TestCommunicationPreferencesRepository
 class FakeCampaignRepository implements CampaignRepository {
   const FakeCampaignRepository();
 
+  /// Gerçek sunucu gibi `ilgiAlaniId`/`sadeceIlgili`'ye göre filtreliyor —
+  /// `CampaignsListPage` artık client-side filtrelemiyor, bu yüzden sahte
+  /// depo da sunucunun yaptığını taklit etmek zorunda.
   @override
-  Future<List<Campaign>> fetchAll() async => testCampaigns;
+  Future<CampaignsFeed> fetchAll({
+    int? ilgiAlaniId,
+    bool sadeceIlgili = false,
+  }) async {
+    final campaigns = testCampaigns.where((c) {
+      if (ilgiAlaniId != null) {
+        return c.ilgiAlanlari.any((t) => t.id == ilgiAlaniId);
+      }
+      if (sadeceIlgili) return c.ilgiAlanlari.any((t) => t.eslesen);
+      return true;
+    }).toList();
+    return CampaignsFeed(
+      campaigns: campaigns,
+      categories: testCampaignCategories,
+      selectedInterestCount: testSelectedInterestCount,
+    );
+  }
 
   @override
   Future<Campaign> fetchDetail(String id) async =>
@@ -138,6 +159,33 @@ class FakeCampaignRepository implements CampaignRepository {
 
   @override
   Future<void> setFavorite(String id, bool favori) async {}
+}
+
+/// Testlerde kullanılan sahte bildirim deposu — ağa çıkmaz.
+class _TestNotificationRepository implements NotificationRepository {
+  const _TestNotificationRepository();
+
+  @override
+  Future<NotificationsFeed> fetchAll() async => NotificationsFeed(
+    notifications: testNotifications,
+    unreadCount: testNotifications.where((n) => !n.read).length,
+    totalCount: testNotifications.length,
+  );
+
+  @override
+  Future<int> markRead(String bildirimGuid) async =>
+      testNotifications.where((n) => !n.read && n.id != bildirimGuid).length;
+
+  @override
+  Future<int> markAllRead() async => 0;
+
+  @override
+  Future<int> delete(String bildirimGuid) async => testNotifications
+      .where((n) => !n.read && n.id != bildirimGuid)
+      .length;
+
+  @override
+  Future<int> deleteAll() async => 0;
 }
 
 /// Bellekte tutan, platform kanalına (Keychain) hiç dokunmayan sahte oturum
@@ -369,15 +417,72 @@ final testCampaigns = <Campaign>[
   ),
 ];
 
-/// İlgi alanı seçim ekranının test kataloğu — gerçek 13 kayıtlık kataloğun
-/// yerine, akış testinin dokunduğu üç kategoriyi (Teknoloji, Seyahat,
-/// Sinema) içeren küçük bir sabit küme yeterli.
+/// İlgi alanı seçim ekranının test kataloğu (`interestCatalogProvider`,
+/// `GET /api/ilgi-alanlari`). `testCampaigns`'taki `ilgiAlanlari` id'leriyle
+/// BİREBİR eşleşmeli — aksi halde Kampanyalar'daki kategori filtresi
+/// hiçbir kampanyayla eşleşmez.
 final testInterestCatalog = <InterestCategoryItem>[
-  const InterestCategoryItem(id: 1, kod: 'TEKNOLOJI', ad: 'Teknoloji'),
-  const InterestCategoryItem(id: 2, kod: 'SEYAHAT', ad: 'Seyahat'),
-  const InterestCategoryItem(id: 3, kod: 'SINEMA', ad: 'Sinema'),
-  const InterestCategoryItem(id: 4, kod: 'SPOR', ad: 'Spor'),
-  const InterestCategoryItem(id: 5, kod: 'SAGLIK', ad: 'Sağlık'),
+  const InterestCategoryItem(id: 1, kod: 'YEME_ICME', ad: 'Yeme & İçme'),
+  const InterestCategoryItem(id: 2, kod: 'ALISVERIS', ad: 'Alışveriş'),
+  const InterestCategoryItem(id: 3, kod: 'SAGLIK', ad: 'Sağlık'),
+  const InterestCategoryItem(id: 4, kod: 'EGITIM', ad: 'Eğitim'),
+  const InterestCategoryItem(id: 5, kod: 'OTOMOTIV', ad: 'Otomotiv'),
+  const InterestCategoryItem(id: 6, kod: 'SEYAHAT', ad: 'Seyahat'),
+  const InterestCategoryItem(id: 7, kod: 'AKARYAKIT', ad: 'Akaryakıt'),
+  const InterestCategoryItem(id: 8, kod: 'EVCIL_HAYVAN', ad: 'Evcil Hayvan'),
+];
+
+/// Kampanyalar sekmesinin kategori çipleri — `GET /api/kampanyalar`'ın üst
+/// seviye `ilgiAlanlari` dizisinin test sabiti. Aynı id uzayını paylaşır
+/// (`testInterestCatalog` ile), ama backend'in kendi uyarısı gereği AYRI bir
+/// sabit: ikisi farklı uçlardan, farklı amaçlarla gelir. "Eğitim" ve
+/// "Sağlık" `secili: true` — dolu çip rozetini ve "İlgi Alanlarım" çipini
+/// goldenlerde de sınamak için.
+final testCampaignCategories = <CampaignCategoryOption>[
+  const CampaignCategoryOption(id: 1, ad: 'Yeme & İçme', secili: false),
+  const CampaignCategoryOption(id: 2, ad: 'Alışveriş', secili: false),
+  const CampaignCategoryOption(id: 3, ad: 'Sağlık', secili: true),
+  const CampaignCategoryOption(id: 4, ad: 'Eğitim', secili: true),
+  const CampaignCategoryOption(id: 5, ad: 'Otomotiv', secili: false),
+  const CampaignCategoryOption(id: 6, ad: 'Seyahat', secili: false),
+  const CampaignCategoryOption(id: 7, ad: 'Akaryakıt', secili: false),
+  const CampaignCategoryOption(id: 8, ad: 'Evcil Hayvan', secili: false),
+];
+
+/// `seciliIlgiAlaniSayisi` test sabiti — yukarıdaki iki `secili: true`
+/// kayıtla tutarlı.
+const testSelectedInterestCount = 2;
+
+/// Bildirimler ekranının test sabiti — biri okunmamış/hedefli (kampanya),
+/// biri okunmuş/hedefsiz (genel duyuru).
+final testNotifications = <AppNotification>[
+  AppNotification(
+    id: 'bildirim-1',
+    type: NotificationType.kampanya,
+    title: 'Yeni kampanya',
+    message: 'İstinye Üniversitesi yüksek lisansta %50 indirim seni bekliyor.',
+    createdAt: DateTime(2026, 11, 18, 10, 15),
+    read: false,
+    targetType: 'KAMPANYA',
+    targetId: 'istinye-yuksek-lisans',
+  ),
+  AppNotification(
+    id: 'bildirim-2',
+    type: NotificationType.genel,
+    title: 'Hoş geldin',
+    message: 'MLPCARE Birlikte ailesine hoş geldin.',
+    createdAt: DateTime(2026, 11, 10, 9),
+    read: true,
+    readAt: DateTime(2026, 11, 10, 9, 5),
+  ),
+  AppNotification(
+    id: 'bildirim-3',
+    type: NotificationType.puan,
+    title: 'Puan kazandın',
+    message: 'Kan bağışını tamamladığın için 500 puan hesabına eklendi.',
+    createdAt: DateTime(2026, 11, 5, 8),
+    read: false,
+  ),
 ];
 
 /// Figma'daki örnek profil.
@@ -391,6 +496,7 @@ final testProfile = VerifiedProfile(
   matchedAt: DateTime(2026, 7, 8),
   interestCount: 6,
   bloodType: 'A+',
+  unreadNotificationCount: 2,
 );
 
 /// Testlerin ağa çıkmadan çalışmasını sağlayan provider değiştirmeleri.
@@ -430,6 +536,7 @@ testOverrides({
           interestCount: interestCount ?? testProfile.interestCount,
           missingInfo: missingInfo,
           bloodType: testProfile.bloodType,
+          unreadNotificationCount: testProfile.unreadNotificationCount,
         );
   return [
   // Sürüm paket üst verisinden okunuyor; testte platform eklentisi yok.
@@ -456,6 +563,8 @@ testOverrides({
   pointsSummaryAsyncProvider.overrideWith(
     (ref) async => const PointsSummary(total: 2450, usable: 2150, pending: 300),
   ),
+  // Gerçek sağlayıcı `/api/puan/kosullar`'a çıkar; testte ağ yok.
+  pointsTermsAsyncProvider.overrideWith((ref) async => testPointsTerms),
   bloodRequestsAsyncProvider.overrideWith(
     (ref) async => const [
       BloodRequest(
@@ -493,6 +602,9 @@ testOverrides({
   ),
   birlikteAuthRepositoryProvider.overrideWith(FakeBirlikteAuthRepository.new),
   campaignRepositoryProvider.overrideWithValue(const FakeCampaignRepository()),
+  notificationRepositoryProvider.overrideWithValue(
+    const _TestNotificationRepository(),
+  ),
   campaignsProvider.overrideWithValue(testCampaigns),
   // Favoriler artık sunucuda; testte sabit bir başlangıç kümesiyle
   // değiştiriliyor (gerçek `build()` kampanya listesini beklerdi).
@@ -519,4 +631,25 @@ const testProfileStats = ProfileStats(
   familyCapacity: 3,
   favoriteCount: 8,
   interestCount: 6,
+);
+
+/// `GET /api/puan/kosullar`'ın test sabiti — gerçek yanıt yönetimden
+/// değiştirilebilir metin taşır, burada sabit bir örnek yeterli.
+final testPointsTerms = PointsTerms(
+  baslik: 'Puan Kazanma ve Kullanma Koşulları',
+  giris: 'Birlikte puanları, uygulama içindeki etkinliklere katılarak '
+      'kazanılır ve kampanyalarda kullanılır.',
+  bolumler: const [
+    PointsTermsSection(
+      baslik: 'Puan nasıl kazanılır?',
+      maddeler: [
+        'Kan bağışı taleplerine destek olup bağışını tamamlayarak.',
+      ],
+    ),
+    PointsTermsSection(
+      baslik: 'Puan nasıl kullanılır?',
+      maddeler: ['Puan karşılığı kampanyalardan kupon oluşturarak.'],
+    ),
+  ],
+  guncellemeTarihi: DateTime(2026, 11, 18, 10),
 );

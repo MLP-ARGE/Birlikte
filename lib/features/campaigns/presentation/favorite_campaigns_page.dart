@@ -40,32 +40,58 @@ class FavoriteCampaignsPage extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.s5),
             Expanded(
-              child: favorites.isEmpty
-                  ? const _Empty()
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.screenH,
-                        0,
-                        AppSpacing.screenH,
-                        AppSpacing.s8,
+              child: RefreshIndicator(
+                onRefresh: () => ref.refresh(campaignsAsyncProvider.future),
+                child: favorites.isEmpty
+                    // Boş durum da kaydırılabilir olmalı, aksi halde
+                    // `RefreshIndicator` sürüklemeyi algılayamaz.
+                    ? LayoutBuilder(
+                        builder: (context, constraints) =>
+                            SingleChildScrollView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minHeight: constraints.maxHeight,
+                                ),
+                                child: const _Empty(),
+                              ),
+                            ),
+                      )
+                    : ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.screenH,
+                          0,
+                          AppSpacing.screenH,
+                          AppSpacing.s8,
+                        ),
+                        itemCount: favorites.length,
+                        separatorBuilder: (_, _) =>
+                            const SizedBox(height: AppSpacing.s5),
+                        itemBuilder: (context, i) {
+                          final campaign = favorites[i];
+                          return BirlikteCampaignCard(
+                            campaign: campaign,
+                            width: double.infinity,
+                            imageHeight: 198,
+                            isFavorite: favoriteIds.contains(campaign.id),
+                            onTap: () {
+                              ref.invalidate(
+                                campaignDetailAsyncProvider(campaign.id),
+                              );
+                              context.push(
+                                Routes.campaignDetail(campaign.id),
+                              );
+                            },
+                            onFavoriteTap: () => toggleCampaignFavorite(
+                              context,
+                              ref,
+                              campaign.id,
+                            ),
+                          );
+                        },
                       ),
-                      itemCount: favorites.length,
-                      separatorBuilder: (_, _) =>
-                          const SizedBox(height: AppSpacing.s5),
-                      itemBuilder: (context, i) {
-                        final campaign = favorites[i];
-                        return BirlikteCampaignCard(
-                          campaign: campaign,
-                          width: double.infinity,
-                          imageHeight: 198,
-                          isFavorite: favoriteIds.contains(campaign.id),
-                          onTap: () =>
-                              context.push(Routes.campaignDetail(campaign.id)),
-                          onFavoriteTap: () =>
-                              toggleCampaignFavorite(context, ref, campaign.id),
-                        );
-                      },
-                    ),
+              ),
             ),
           ],
         ),

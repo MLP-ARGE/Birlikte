@@ -32,6 +32,30 @@ class HomeRepository {
     return rows.map(_bloodRequestFromRow).toList();
   }
 
+  /// Metin yönetimden değiştirilebilir; her çağrı sunucudan taze veri
+  /// getirir, uygulama tarafında gömülü/önbellekli bir kopyası yok.
+  Future<PointsTerms> fetchPointsTerms() async {
+    final veri = await _api.puanKosullari();
+    final bolumler = (veri['bolumler'] as List<dynamic>? ?? [])
+        .cast<Map<String, dynamic>>();
+    return PointsTerms(
+      baslik: (veri['baslik'] as String?) ?? '',
+      giris: (veri['giris'] as String?) ?? '',
+      bolumler: bolumler
+          .map(
+            (b) => PointsTermsSection(
+              baslik: (b['baslik'] as String?) ?? '',
+              maddeler: (b['maddeler'] as List<dynamic>? ?? [])
+                  .cast<String>(),
+            ),
+          )
+          .toList(),
+      guncellemeTarihi: DateTime.tryParse(
+        (veri['guncellemeTarihi'] as String?) ?? '',
+      ),
+    );
+  }
+
   Future<void> applyToBloodRequest(String kanTalebiGuid) =>
       _api.kanBasvurusuYap(kanTalebiGuid);
 

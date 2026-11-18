@@ -66,9 +66,17 @@ void main() {
   testWidgets('kategori çipi sonuçları filtreler', (tester) async {
     await pumpApp(tester);
 
-    // Kategori çipleri artık kampanyalardaki ilgi alanlarından, ilk görülme
-    // sırasıyla türetiliyor; test fikstüründe "Eğitim" (İstinye) ilk sırada
-    // olduğundan kaydırmaya gerek yok.
+    // Kategori çipleri artık ilgi alanı kataloğunun TAMAMINDAN geliyor
+    // (`testInterestCatalog`), kampanyalarda görülme sırasından değil —
+    // "Eğitim" artık ilk chip değil, yatay listeyi kaydırmak gerekiyor
+    // (aksi halde chip henüz mount edilmemiş oluyor, `ListView` lazy).
+    await tester.drag(
+      find.byWidgetPredicate(
+        (w) => w is ListView && w.scrollDirection == Axis.horizontal,
+      ),
+      const Offset(-400, 0),
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Eğitim'));
     await tester.pumpAndSettle();
 
@@ -99,7 +107,7 @@ void main() {
 
     expect(find.text("Starbucks'ta Büyük Boy İçeceklerde %25 İndirim"),
         findsOneWidget);
-    expect(find.text('Kupon Oluştur'), findsOneWidget);
+    expect(find.text('Kupon Al'), findsOneWidget);
     // Bu kampanyada Koşullar/Şubeler içeriği yok, sekmeler görünmemeli.
     expect(find.text('Koşullar'), findsNothing);
 
@@ -162,15 +170,15 @@ void main() {
     await tester.tap(find.text('İstinye Üniversitesi'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Kupon Oluştur'));
+    await tester.tap(find.text('Kupon Al'));
     await tester.pumpAndSettle();
 
-    // Başlık ve birincil buton aynı metni taşıyor ("Kuponu oluştur");
-    // buton her zaman sonda render edildiği için `.last` hedefleniyor.
-    expect(find.text('Kuponu oluştur'), findsWidgets);
+    // Başlık ve birincil buton aynı metni taşıyor ("Kuponu al"); buton
+    // her zaman sonda render edildiği için `.last` hedefleniyor.
+    expect(find.text('Kuponu al'), findsWidgets);
     expect(find.text('KUPON KURALLARI'), findsOneWidget);
 
-    await tester.tap(find.text('Kuponu oluştur').last);
+    await tester.tap(find.text('Kuponu al').last);
     await tester.pumpAndSettle();
 
     expect(find.text('Kuponun hazır'), findsOneWidget);
@@ -180,7 +188,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Diyalog kapandı, detay ekranındayız.
-    expect(find.text('Kuponu oluştur'), findsNothing);
-    expect(find.text('Kupon Oluştur'), findsOneWidget);
+    expect(find.text('Kuponu al'), findsNothing);
+    expect(find.text('Kupon Al'), findsOneWidget);
   });
 }

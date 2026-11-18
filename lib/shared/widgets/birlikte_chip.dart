@@ -15,17 +15,25 @@ class BirlikteChip extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.marked = false,
   });
 
   final String label;
   final bool selected;
   final VoidCallback onTap;
 
+  /// Kullanıcının kalıcı olarak seçtiği bir ilgi alanı mı (o an AKTİF
+  /// filtre bu olmasa bile) — sağ üstte küçük bir nokta ile işaretlenir.
+  /// `selected` iken ayrıca gösterilmiyor, zaten dolu stil yeterli.
+  final bool marked;
+
   /// Figma: 40 yüksek, etiket satır yüksekliği 18 → dikey dolgu 11.
   /// Yüksekliği `height` ile vermek yerine dolgudan kuruyoruz: `Container`'a
   /// `alignment` verilince gelen maksimum genişliği doldurur ve [Wrap] içinde
   /// chip'ler yan yana dizilmez.
   static const _verticalPad = 11.0;
+
+  static const _dotSize = 8.0;
 
   @override
   Widget build(BuildContext context) {
@@ -35,36 +43,57 @@ class BirlikteChip extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.s5,
-            vertical: _verticalPad,
-          ),
-          decoration: BoxDecoration(
-            color: selected
-                ? AppColors.actionPrimary
-                : AppColors.surfaceSunken,
-            borderRadius: BorderRadius.circular(AppRadius.full),
-          ),
-          // `labelMedium`'ın satır yüksekliği (18/14) fontun kendi
-          // ascent/descent oranından fazla boşluk ekliyor; bu boşluk üstte
-          // ve altta eşit dağılmadığı için eşit dolgulu bu pilde metin hafif
-          // kaymış görünüyordu. `textHeightBehavior` bu fazlalığı kırpıp
-          // metni gerçek glif sınırlarına oturtuyor.
-          child: Text(
-            label,
-            textHeightBehavior: const TextHeightBehavior(
-              applyHeightToFirstAscent: false,
-              applyHeightToLastDescent: false,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOut,
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.s5,
+                vertical: _verticalPad,
+              ),
+              decoration: BoxDecoration(
+                color: selected
+                    ? AppColors.actionPrimary
+                    : AppColors.surfaceSunken,
+                borderRadius: BorderRadius.circular(AppRadius.full),
+              ),
+              // `labelMedium`'ın satır yüksekliği (18/14) fontun kendi
+              // ascent/descent oranından fazla boşluk ekliyor; bu boşluk
+              // üstte ve altta eşit dağılmadığı için eşit dolgulu bu pilde
+              // metin hafif kaymış görünüyordu. `textHeightBehavior` bu
+              // fazlalığı kırpıp metni gerçek glif sınırlarına oturtuyor.
+              child: Text(
+                label,
+                textHeightBehavior: const TextHeightBehavior(
+                  applyHeightToFirstAscent: false,
+                  applyHeightToLastDescent: false,
+                ),
+                style: AppTypography.labelMedium.copyWith(
+                  color: selected
+                      ? AppColors.textOnBrand
+                      : AppColors.textPrimary,
+                ),
+              ),
             ),
-            style: AppTypography.labelMedium.copyWith(
-              color: selected
-                  ? AppColors.textOnBrand
-                  : AppColors.textPrimary,
-            ),
-          ),
+            if (marked && !selected)
+              Positioned(
+                top: -2,
+                right: -2,
+                child: Container(
+                  width: _dotSize,
+                  height: _dotSize,
+                  decoration: const BoxDecoration(
+                    color: AppColors.brand,
+                    shape: BoxShape.circle,
+                    border: Border.fromBorderSide(
+                      BorderSide(color: AppColors.surface, width: 1.5),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

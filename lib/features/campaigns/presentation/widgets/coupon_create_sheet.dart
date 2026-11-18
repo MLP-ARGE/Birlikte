@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../app/routes.dart';
 import '../../../../core/birlikte_api/birlikte_api_client.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_dimens.dart';
@@ -88,7 +90,7 @@ class _CouponCreateSheetState extends ConsumerState<_CouponCreateSheet> {
               ),
             ),
             const SizedBox(height: AppSpacing.s5),
-            Text('Kuponu oluştur', style: AppTypography.h3),
+            Text('Kuponu al', style: AppTypography.h3),
             // Figma: başlık-açıklama gap 6.
             const SizedBox(height: 6),
             Text(
@@ -101,6 +103,25 @@ class _CouponCreateSheetState extends ConsumerState<_CouponCreateSheet> {
                 color: AppColors.textSecondary,
               ),
             ),
+            if (campaign.puanBedeli > 0) ...[
+              const SizedBox(height: AppSpacing.s2),
+              GestureDetector(
+                onTap: () {
+                  // Metin yönetimden değiştirilebilir ve gömülü değil —
+                  // sayfa her açıldığında sunucudan taze çekilsin diye
+                  // önce invalidate ediliyor.
+                  ref.invalidate(pointsTermsAsyncProvider);
+                  context.push(Routes.pointsTerms);
+                },
+                child: Text(
+                  'Puan koşulları',
+                  style: AppTypography.labelMedium.copyWith(
+                    color: AppColors.textBrand,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: AppSpacing.s6),
             _CampaignSummary(campaign: campaign),
             const SizedBox(height: AppSpacing.s6),
@@ -135,7 +156,7 @@ class _CouponCreateSheetState extends ConsumerState<_CouponCreateSheet> {
             ),
             const SizedBox(height: AppSpacing.s6),
             BirlikteButton(
-              label: 'Kuponu oluştur',
+              label: 'Kuponu al',
               isLoading: _creating,
               onPressed: _creating ? null : _confirm,
             ),
@@ -160,11 +181,14 @@ class _CouponCreateSheetState extends ConsumerState<_CouponCreateSheet> {
           .createCoupon(campaign.id);
 
       // Kampanyanın kendi `kuponAldim`/`kuponum`'u ve Kuponlarım listesi
-      // şimdi bayat — aksi halde kupon oluşturulduktan sonra Kuponlarım'da
-      // görünmez, kampanya hâlâ "Kupon Oluştur" gösterir ve kullanıcı aynı
-      // kuponu tekrar "oluşturabiliyormuş" gibi algılar.
+      // şimdi bayat — aksi halde kupon alındıktan sonra Kuponlarım'da
+      // görünmez, kampanya hâlâ "Kupon Al" gösterir ve kullanıcı aynı
+      // kuponu tekrar "alabiliyormuş" gibi algılar. Detay sayfası artık
+      // ayrı bir uçtan (`campaignDetailAsyncProvider`) okunuyor, o da
+      // tazelenmezse "Kuponumu Göster" hâlâ eski (kuponsuz) veriyi gösterir.
       ref.invalidate(campaignsAsyncProvider);
       ref.invalidate(couponsAsyncProvider);
+      ref.invalidate(campaignDetailAsyncProvider(campaign.id));
 
       if (!mounted) return;
       Navigator.pop(context);
@@ -368,14 +392,18 @@ class _CouponSuccessDialog extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.s5),
             Text(
-              coupon.isExpired
+              coupon.isUsed
+                  ? 'Kupon kullanıldı'
+                  : coupon.isExpired
                   ? 'Kuponun'
                   : (alreadyExisted ? 'Zaten kuponun var' : 'Kuponun hazır'),
               style: AppTypography.h4,
             ),
             const SizedBox(height: AppSpacing.s2),
             Text(
-              coupon.isExpired
+              coupon.isUsed
+                  ? 'Bu kupon daha önce kullanıldı.'
+                  : coupon.isExpired
                   ? 'Süresi doldu.'
                   : '$expiryLabel\'e kadar geçerli.',
               textAlign: TextAlign.center,
@@ -392,7 +420,14 @@ class _CouponSuccessDialog extends StatelessWidget {
                 borderRadius: BorderRadius.circular(AppRadius.md),
               ),
               child: Center(
-                child: Text(coupon.code, style: AppTypography.couponCodeLarge),
+                // Pasif (AKTIF olmayan) kuponun kodu soluk gösteriliyor —
+                // Kuponlarım listesindeki `UserCoupon` ile aynı kural.
+                child: Text(
+                  coupon.code,
+                  style: AppTypography.couponCodeLarge.copyWith(
+                    color: coupon.isActive ? null : AppColors.textTertiary,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: AppSpacing.s6),

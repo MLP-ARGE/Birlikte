@@ -19,16 +19,27 @@ final pointsSummaryProvider = Provider<PointsSummary>(
       const PointsSummary(total: 0, usable: 0, pending: 0),
 );
 
-/// Tüm kampanyalar — Kampanyalar sekmesinin ana listesi. Diğer bölümler
-/// (ana sayfa karuseli, favoriler) bu listeden türetiliyor; tek kaynak
-/// burada, aksi halde aynı kampanya iki ayrı id ile ekranlar arası tutarsız
-/// düşerdi.
+/// Puan koşulları metni — `GET /api/puan/kosullar`'dan, YÖNETİMDEN
+/// değiştirilebilir, uygulamaya GÖMÜLMEZ. `autoDispose` değil (uygulamanın
+/// geri kalanıyla tutarlı) — bunun yerine bu sayfaya giden HER yol
+/// (`PointsTermsPage`'i açan her çağrı yeri) önce `ref.invalidate` ediyor,
+/// böylece her açılışta sunucudan taze metin çekiliyor.
+final pointsTermsAsyncProvider = FutureProvider<PointsTerms>((ref) {
+  return ref.watch(homeRepositoryProvider).fetchPointsTerms();
+});
+
+/// Tüm (filtresiz) kampanyalar — ana sayfa karuseli, favoriler ve puan
+/// bedeli gibi Kampanyalar sekmesinden BAĞIMSIZ yerlerin tek kaynağı. Sekme
+/// içindeki kategori filtresi ayrı bir sunucu isteği (bkz.
+/// `campaignsFeedAsyncProvider`) olduğundan burası onunla karışmaz — aksi
+/// halde kullanıcı bir kategoriyi filtrelerken favori sayısı da o kategoriye
+/// göre küçülürdü.
 ///
 /// birlikte-api zaten yalnızca kullanıcıya uygun (kurum, kayıt tipi,
 /// cinsiyet, tarih kurallarına uyan) kampanyaları döndürüyor; istemci ayrıca
 /// filtrelemiyor.
 final campaignsAsyncProvider = FutureProvider<List<Campaign>>((ref) async {
-  return ref.watch(campaignRepositoryProvider).fetchAll();
+  return (await ref.watch(campaignRepositoryProvider).fetchAll()).campaigns;
 });
 
 /// Ekranların senkron kullandığı görünüm; veri gelene kadar boş liste.
@@ -36,14 +47,83 @@ final campaignsProvider = Provider<List<Campaign>>(
   (ref) => ref.watch(campaignsAsyncProvider).value ?? const [],
 );
 
-/// Tek bir kampanyayı id ile bulur — detay ekranı bunu kullanır.
-final campaignByIdProvider = Provider.family<Campaign?, String>(
-  (ref, id) {
-    for (final c in ref.watch(campaignsProvider)) {
-      if (c.id == id) return c;
-    }
-    return null;
-  },
+/// Kampanyalar sekmesinin SUNUCU TARAFLI filtre seçimi: tek bir ilgi alanı
+/// (`ilgiAlaniId`) ya da kullanıcının seçtiği TÜM ilgi alanları
+/// (`sadeceIlgili`). İkisi birbirini dışlar; "Tümü" ikisi de boş/false'tur.
+class CampaignsFilter {
+  const CampaignsFilter({this.ilgiAlaniId, this.sadeceIlgili = false});
+
+  final int? ilgiAlaniId;
+  final bool sadeceIlgili;
+
+  @override
+  bool operator ==(Object other) =>
+      other is CampaignsFilter &&
+      other.ilgiAlaniId == ilgiAlaniId &&
+      other.sadeceIlgili == sadeceIlgili;
+
+  @override
+  int get hashCode => Object.hash(ilgiAlaniId, sadeceIlgili);
+}
+
+/// Kampanyalar sekmesinin o anki filtre seçimi. `IndexedStack` sayfayı canlı
+/// tuttuğundan sekmeler arası geçişte korunur (normal tab davranışı) —
+/// dışarıdan GİRİLEN bir ziyaret `reset()` ile sıfırlar (bkz.
+/// `campaignsFilterResetProvider`).
+final campaignsFilterProvider =
+    NotifierProvider<CampaignsSelectedFilter, CampaignsFilter>(
+      CampaignsSelectedFilter.new,
+    );
+
+class CampaignsSelectedFilter extends Notifier<CampaignsFilter> {
+  @override
+  CampaignsFilter build() => const CampaignsFilter();
+
+  void selectCategory(int? ilgiAlaniId) =>
+      state = CampaignsFilter(ilgiAlaniId: ilgiAlaniId);
+
+  void selectOnlyMine() => state = const CampaignsFilter(sadeceIlgili: true);
+
+  void reset() => state = const CampaignsFilter();
+}
+
+/// Kampanyalar sekmesinin o anki filtreye göre SUNUCUDAN gelen hali.
+///
+/// `veri.kampanyalar` zaten eşleşen ilgi alanları önde sıralı geliyor;
+/// istemci yeniden sıralamıyor (bkz. backend notu: "mobil sıralamayı
+/// değiştirmesin, geldiği sırayla göstersin") — yalnızca kullanıcının kendi
+/// seçtiği sıralama (Süresi yaklaşan/En yüksek indirim) bunun üzerine
+/// uygulanır, "Önerilen" seçiliyken sunucu sırası olduğu gibi kalır.
+final campaignsFeedAsyncProvider = FutureProvider<CampaignsFeed>((ref) {
+  final filter = ref.watch(campaignsFilterProvider);
+  return ref
+      .watch(campaignRepositoryProvider)
+      .fetchAll(ilgiAlaniId: filter.ilgiAlaniId, sadeceIlgili: filter.sadeceIlgili);
+});
+
+/// Kampanyalar ekranına HER girişte (bottom nav dokunuşu, "Tümünü Gör",
+/// hızlı erişim karosu) Cüzdanım'daki gibi sunucudan tazeler — aksi halde
+/// `IndexedStack` sayfayı canlı tuttuğundan başka bir yerden değişen bir
+/// kampanya (favori, kupon durumu, yeni eklenen) kullanıcı sekmeye tekrar
+/// gelene kadar bayat listede kalır.
+void refreshCampaignsData(WidgetRef ref) {
+  ref.invalidate(campaignsAsyncProvider);
+  ref.invalidate(campaignsFeedAsyncProvider);
+}
+
+/// Kampanya detayı — `GET /api/kampanyalar/{guid}`'den.
+///
+/// Detay ekranı eskiden listeden (`campaignsProvider`) ID'ye göre arama
+/// yapıyordu; o zamanki liste ucu `kuponum`'u döndürmüyordu, bu yüzden
+/// `kuponAldim` true olsa bile `kuponum` hep null kalıyor ve "Kuponumu
+/// Göster" her seferinde yeniden "Kupon Al" sayfasını açıyordu. Backend
+/// artık liste ucunda da `kuponum`'u döndürüyor, ama detay kendi ucundan
+/// okumaya devam ediyor — ayrıca `detayUrl`/tam açıklama gibi yalnızca
+/// detayda gelen alanlar da var ve autoDispose olmadığından kampanyaya her
+/// girişte (bkz. çağrı yerlerindeki `ref.invalidate`) taze veri garantisi
+/// tek yerden sağlanıyor.
+final campaignDetailAsyncProvider = FutureProvider.family<Campaign, String>(
+  (ref, id) => ref.watch(campaignRepositoryProvider).fetchDetail(id),
 );
 
 /// Ana sayfa "Kampanyalar" karuseli — tüm kampanyalardan süresi en yakın
@@ -190,12 +270,13 @@ final familyMembersProvider = Provider<List<FamilyMember>>(
 /// Eklenebilecek azami yakın sayısı.
 final familyCapacityProvider = Provider<int>((ref) => 3);
 
-/// Kampanyalar sekmesi `IndexedStack`'te canlı kaldığı için arama/filtre/
-/// sıralama seçimi sekmeler arası geçişte (normal tab davranışı) korunuyor
+/// Kampanyalar sekmesi `IndexedStack`'te canlı kaldığı için arama/sıralama/
+/// kategori seçimi sekmeler arası geçişte (normal tab davranışı) korunuyor
 /// — ama "Tümünü Gör" ya da hızlı erişimdeki "Kampanya" karosuyla GİRİLEN
 /// bir ziyaret, önceki ziyaretten kalma filtreyle açılmamalı; kullanıcı o an
 /// TÜM kampanyaları görmeyi bekliyor. `bump()` çağrıldıkça `CampaignsListPage`
-/// filtrelerini sıfırlıyor.
+/// hem kendi yerel durumunu (arama metni, sıralama) hem de sunucu filtresini
+/// (`campaignsFilterProvider`) sıfırlıyor.
 final campaignsFilterResetProvider =
     NotifierProvider<CampaignsFilterReset, int>(CampaignsFilterReset.new);
 

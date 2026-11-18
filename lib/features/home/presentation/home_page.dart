@@ -12,6 +12,7 @@ import '../../../shared/widgets/birlikte_campaign_card.dart';
 import '../../../shared/widgets/birlikte_section_header.dart';
 import '../../auth/application/verified_profile_provider.dart';
 import '../../auth/data/profile_repository.dart';
+import '../../notifications/application/notification_providers.dart';
 import '../application/home_providers.dart';
 import '../domain/home_models.dart';
 import 'widgets/ailem_section.dart';
@@ -80,6 +81,7 @@ class HomePage extends ConsumerWidget {
     // karşılaşır.
     void goToAllCampaigns() {
       ref.read(campaignsFilterResetProvider.notifier).bump();
+      refreshCampaignsData(ref);
       context.go(Routes.campaigns);
     }
 
@@ -91,79 +93,109 @@ class HomePage extends ConsumerWidget {
       context.go(Routes.wallet);
     }
 
+    // Kampanya detayı `campaignDetailAsyncProvider` ile ayrı bir uçtan
+    // okunuyor ve autoDispose değil — destek ekibi kuponu iptal ederse
+    // (kuponAldim tekrar false'a döner) kullanıcı aynı kampanyaya tekrar
+    // girdiğinde bunu görmeli, bayat önbellekte kalmamalı.
+    void openCampaign(String id) {
+      ref.invalidate(campaignDetailAsyncProvider(id));
+      context.push(Routes.campaignDetail(id));
+    }
+
+    // Bildirimler listesi autoDispose değil — ekrana her girişte taze
+    // (okunmamış sayısı dahil) gösterilsin diye önce invalidate ediliyor.
+    void openNotifications() {
+      ref.invalidate(notificationsProvider);
+      context.push(Routes.notifications);
+    }
+
+    // Aşağı çekip yenileme: ekrandaki her bölümü besleyen uçları tazeler.
+    Future<void> onRefresh() => Future.wait([
+      ref.refresh(profileProvider.future),
+      ref.refresh(campaignsAsyncProvider.future),
+      ref.refresh(pointsSummaryAsyncProvider.future),
+      ref.refresh(bloodRequestsAsyncProvider.future),
+      ref.refresh(familyMembersAsyncProvider.future),
+    ]);
+
     return Scaffold(
       backgroundColor: AppColors.surface,
       body: SafeArea(
         bottom: false,
         child: Column(
           children: [
-            HomeHeader(profile: profile, hasNotifications: true),
+            HomeHeader(profile: profile, onNotificationsTap: openNotifications),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.only(bottom: AppSpacing.s8),
-                children: [
-                  inset(
-                    QuickTiles(
-                      tiles: [
-                        QuickTile(
-                          label: 'Kuponlar',
-                          icon: AppIcons.ticket,
-                          onTap: goToWallet,
-                        ),
-                        QuickTile(
-                          label: 'Puanlar',
-                          icon: AppIcons.sparkles,
-                          onTap: goToWallet,
-                        ),
-                        QuickTile(
-                          label: 'Kampanya',
-                          icon: AppIcons.ticketPercent,
-                          onTap: goToAllCampaigns,
-                        ),
-                        QuickTile(
-                          label: 'Kandaş',
-                          icon: AppIcons.droplet,
-                          onTap: () => context.go(Routes.kandas),
-                        ),
-                      ],
+              child: RefreshIndicator(
+                onRefresh: onRefresh,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.only(bottom: AppSpacing.s8),
+                  children: [
+                    inset(
+                      QuickTiles(
+                        tiles: [
+                          QuickTile(
+                            label: 'Kuponlar',
+                            icon: AppIcons.ticket,
+                            onTap: goToWallet,
+                          ),
+                          QuickTile(
+                            label: 'Puanlar',
+                            icon: AppIcons.sparkles,
+                            onTap: goToWallet,
+                          ),
+                          QuickTile(
+                            label: 'Kampanya',
+                            icon: AppIcons.ticketPercent,
+                            onTap: goToAllCampaigns,
+                          ),
+                          QuickTile(
+                            label: 'Kandaş',
+                            icon: AppIcons.droplet,
+                            onTap: () => context.go(Routes.kandas),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: _sectionGap),
-                  inset(
-                    PointsCard(
-                      summary: points,
-                      onTap: goToWallet,
-                      onSpendTap: goToWallet,
+                    const SizedBox(height: _sectionGap),
+                    inset(
+                      PointsCard(
+                        summary: points,
+                        onTap: goToWallet,
+                        onSpendTap: goToWallet,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: _sectionGap),
-                  inset(
-                    BirlikteSectionHeader(
-                      title: 'Kampanyalar',
-                      actionLabel: 'Tümünü Gör',
-                      onAction: goToAllCampaigns,
+                    const SizedBox(height: _sectionGap),
+                    inset(
+                      BirlikteSectionHeader(
+                        title: 'Kampanyalar',
+                        actionLabel: 'Tümünü Gör',
+                        onAction: goToAllCampaigns,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: _headerGap),
-                  _CampaignCarousel(
-                    campaigns: campaigns,
-                    height: _campaignCarouselHeight,
-                    favorites: favorites,
-                    onToggleFavorite: (id) =>
-                        toggleCampaignFavorite(context, ref, id),
-                  ),
-                  const SizedBox(height: _sectionGap),
-                  inset(
-                    KandasSection(
-                      requests: requests,
-                      onSeeAll: () => context.go(Routes.kandas),
-                      onSupport: (request) =>
-                          toggleBloodRequestApplication(ref, request),
+                    const SizedBox(height: _headerGap),
+                    _CampaignCarousel(
+                      campaigns: campaigns,
+                      height: _campaignCarouselHeight,
+                      favorites: favorites,
+                      onOpen: openCampaign,
+                      onToggleFavorite: (id) =>
+                          toggleCampaignFavorite(context, ref, id),
                     ),
-                  ),
-                  const SizedBox(height: _sectionGap),
-                  inset(AilemSection(members: members)),
-                ],
+                    const SizedBox(height: _sectionGap),
+                    inset(
+                      KandasSection(
+                        requests: requests,
+                        onSeeAll: () => context.go(Routes.kandas),
+                        onSupport: (request) =>
+                            toggleBloodRequestApplication(ref, request),
+                      ),
+                    ),
+                    const SizedBox(height: _sectionGap),
+                    inset(AilemSection(members: members)),
+                  ],
+                ),
               ),
             ),
           ],
@@ -179,12 +211,14 @@ class _CampaignCarousel extends StatelessWidget {
     required this.campaigns,
     required this.height,
     required this.favorites,
+    required this.onOpen,
     required this.onToggleFavorite,
   });
 
   final List<Campaign> campaigns;
   final double height;
   final Set<String> favorites;
+  final ValueChanged<String> onOpen;
   final ValueChanged<String> onToggleFavorite;
 
   @override
@@ -201,7 +235,7 @@ class _CampaignCarousel extends StatelessWidget {
           return BirlikteCampaignCard(
             campaign: campaign,
             isFavorite: favorites.contains(campaign.id),
-            onTap: () => context.push(Routes.campaignDetail(campaign.id)),
+            onTap: () => onOpen(campaign.id),
             onFavoriteTap: () => onToggleFavorite(campaign.id),
           );
         },

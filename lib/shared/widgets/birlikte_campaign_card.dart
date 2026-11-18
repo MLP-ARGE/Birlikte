@@ -122,9 +122,26 @@ class BirlikteCampaignCard extends StatelessWidget {
                             color: AppColors.textPrimary,
                           ),
                         ),
-                        if (campaign.pointsCost case final points?) ...[
+                        if (campaign.pointsCost != null ||
+                            campaign.ilgiAlanlari.any((t) => t.eslesen)) ...[
                           const SizedBox(height: 14),
-                          _PointsTag(points: points),
+                          Wrap(
+                            spacing: AppSpacing.s2,
+                            runSpacing: AppSpacing.s2,
+                            children: [
+                              if (campaign.pointsCost case final points?)
+                                _PointsTag(points: points),
+                              // Backend notu: `eslesen: true` etiketi
+                              // kullanıcının seçtiği ilgi alanıyla
+                              // eşleştiğini gösterir — "isterseniz kartta
+                              // vurgulayın" dediği için küçük bir rozetle
+                              // belirtiyoruz.
+                              if (campaign.ilgiAlanlari.any(
+                                (t) => t.eslesen,
+                              ))
+                                const _MatchedInterestTag(),
+                            ],
+                          ),
                         ],
                         // Bulgu UI-002: indirim satırı kartın alt kenarına
                         // sabitlenmeli; başlık bir ya da iki satır olsun, tüm
@@ -258,6 +275,42 @@ class _PointsTag extends StatelessWidget {
           Text(
             '$points puan',
             style: AppTypography.caption.copyWith(color: AppColors.textBrand),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Kampanyanın seçtiğin bir ilgi alanıyla eşleştiğini gösteren rozet
+/// (`Campaign.ilgiAlanlari[].eslesen: true`) — `_PointsTag` ile aynı pill
+/// stili, farklı renk/ikon.
+class _MatchedInterestTag extends StatelessWidget {
+  const _MatchedInterestTag();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.s3,
+        AppSpacing.s2,
+        10,
+        AppSpacing.s2,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.statusSuccessSubtle,
+        borderRadius: BorderRadius.circular(AppRadius.full),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(AppIcons.heart, size: 13, color: AppColors.textSuccess),
+          const SizedBox(width: AppSpacing.s2),
+          Text(
+            'Sana uygun',
+            style: AppTypography.caption.copyWith(
+              color: AppColors.textSuccess,
+            ),
           ),
         ],
       ),

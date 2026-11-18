@@ -22,6 +22,7 @@ class VerifiedProfile {
     this.interestCount = 0,
     this.missingInfo = const [],
     this.bloodType,
+    this.unreadNotificationCount = 0,
   });
 
   final String fullName;
@@ -83,6 +84,11 @@ class VerifiedProfile {
   /// aynı kaynaktan geliyor, aksi halde hesap değişince iki ayrı önbellek
   /// birbirinden bağımsız bayatlayıp karışabilirdi.
   final String? bloodType;
+
+  /// `/api/me`'nin `okunmamisBildirimSayisi` alanı — bildirim rozeti bu
+  /// zaten yüklenmiş veriden okunuyor, uygulama açılışında ayrı bir çağrı
+  /// gerekmiyor (backend notu).
+  final int unreadNotificationCount;
 
   /// Kullanıcının kendisinin tamamlayabileceği tek alan — diğer ikisi (ad,
   /// soyad) kurum kaydından düzeltilir, uygulamadan değiştirilemez.

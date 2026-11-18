@@ -544,6 +544,19 @@ class BirlikteApiClient {
     return veri as Map<String, dynamic>;
   }
 
+  /// Puan kazanma/kullanma koşulları metni — yönetimden değiştirilebilir,
+  /// uygulamaya gömülmez; çağıran taraf (bkz. `HomeRepository.
+  /// fetchPointsTerms`) her sayfa açılışında yeniden çekmeli.
+  Future<Map<String, dynamic>> puanKosullari() async {
+    final veri = await _authorized(
+      (token) => _http.get(
+        _uri('/api/puan/kosullar'),
+        headers: {'Authorization': 'Bearer $token'},
+      ),
+    );
+    return veri as Map<String, dynamic>;
+  }
+
   /// Okuma ayrı bir uca çıkmıyor — `/api/me` zaten `kanGrubu` alanını
   /// veriyor (bkz. `ProfileRepository`). Silmek için `kanGrubu: null`
   /// gönderilir. Kan grubu özel nitelikli kişisel veri olduğundan
@@ -613,6 +626,92 @@ class BirlikteApiClient {
     );
     return veri as List<dynamic>;
   }
+
+  // ------------------------------------------------------------ bildirimler
+  //
+  // Uygulama içi bildirim kutusu. Push ayrı bir iş — mobil şimdilik push'a
+  // göre bir şey beklemiyor (backend notu).
+
+  Future<Map<String, dynamic>> bildirimlerim({
+    int sayfa = 1,
+    int sayfaBoyutu = 20,
+    bool sadeceOkunmamis = false,
+  }) async {
+    final veri = await _authorized(
+      (token) => _http.get(
+        _uri('/api/me/bildirimler', {
+          'sayfa': '$sayfa',
+          'sayfaBoyutu': '$sayfaBoyutu',
+          'sadeceOkunmamis': '$sadeceOkunmamis',
+        }),
+        headers: {'Authorization': 'Bearer $token'},
+      ),
+    );
+    return veri as Map<String, dynamic>;
+  }
+
+  /// Rozet için genelde ayrı çağrı gerekmiyor — `GET /api/me`'nin
+  /// `okunmamisBildirimSayisi` alanı zaten yüklenmiş veriden geliyor. Bu uç
+  /// yalnızca API tamlığı için var.
+  Future<int> bildirimOkunmamisSayisi() async {
+    final veri = await _authorized(
+      (token) => _http.get(
+        _uri('/api/me/bildirimler/okunmamis-sayi'),
+        headers: {'Authorization': 'Bearer $token'},
+      ),
+    );
+    return _unreadCountFrom(veri);
+  }
+
+  /// Okundu/sil yanıtlarının hepsi güncel `okunmamisSayisi`yi döner —
+  /// çağıran taraf rozeti ayrı bir `/api/me` çağrısı yapmadan buradan
+  /// güncelleyebilir.
+  Future<int> bildirimOkunduIsaretle(String bildirimGuid) async {
+    final veri = await _authorized(
+      (token) => _http.put(
+        _uri('/api/me/bildirimler/$bildirimGuid/okundu'),
+        headers: {'Authorization': 'Bearer $token'},
+      ),
+    );
+    return _unreadCountFrom(veri);
+  }
+
+  Future<int> bildirimlerinHepsiniOkunduIsaretle() async {
+    final veri = await _authorized(
+      (token) => _http.post(
+        _uri('/api/me/bildirimler/hepsi-okundu'),
+        headers: {'Authorization': 'Bearer $token'},
+      ),
+    );
+    return _unreadCountFrom(veri);
+  }
+
+  /// Yalnızca bu kişiden gizler — bir duyuruysa başkalarında durmaya devam
+  /// eder.
+  Future<int> bildirimSil(String bildirimGuid) async {
+    final veri = await _authorized(
+      (token) => _http.delete(
+        _uri('/api/me/bildirimler/$bildirimGuid'),
+        headers: {'Authorization': 'Bearer $token'},
+      ),
+    );
+    return _unreadCountFrom(veri);
+  }
+
+  Future<int> bildirimlerinHepsiniSil() async {
+    final veri = await _authorized(
+      (token) => _http.delete(
+        _uri('/api/me/bildirimler'),
+        headers: {'Authorization': 'Bearer $token'},
+      ),
+    );
+    return _unreadCountFrom(veri);
+  }
+
+  static int _unreadCountFrom(dynamic veri) =>
+      ((veri as Map<String, dynamic>?)?['okunmamisSayisi'] as num?)
+          ?.toInt() ??
+      0;
 }
 
 final birlikteApiClientProvider = Provider<BirlikteApiClient>((ref) {

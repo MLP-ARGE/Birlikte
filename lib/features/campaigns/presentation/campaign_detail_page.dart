@@ -55,8 +55,16 @@ class _CampaignDetailPageState extends ConsumerState<CampaignDetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    final campaign = ref.watch(campaignByIdProvider(widget.campaignId));
-    if (campaign == null) return const _CampaignNotFound();
+    final campaignAsync = ref.watch(
+      campaignDetailAsyncProvider(widget.campaignId),
+    );
+    final campaign = campaignAsync.value;
+    if (campaign == null) {
+      if (campaignAsync.hasError) return const _CampaignNotFound();
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
     final favorites = ref.watch(favoriteSlugsProvider);
     final isFavorite = favorites.contains(campaign.id);
@@ -149,7 +157,7 @@ class _CampaignDetailPageState extends ConsumerState<CampaignDetailPage> {
                   AppSpacing.s3,
                 ),
                 child: BirlikteButton(
-                  label: campaign.kuponAldim ? 'Kuponunu Gör' : 'Kupon Oluştur',
+                  label: campaign.kuponAldim ? 'Kuponumu Göster' : 'Kupon Al',
                   onPressed: () => _onCouponTap(context, campaign),
                 ),
               ),

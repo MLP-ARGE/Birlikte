@@ -94,6 +94,20 @@ class _RequestRow extends StatelessWidget {
   static const _badgeSize = 44.0;
 
   Future<void> _handleSupport(BuildContext context) async {
+    // Destek ol/geri çek tek dokunuşla hemen gerçekleşiyordu — yanlışlıkla
+    // dokunan ya da fikrini değiştiren kullanıcı bir onay adımı olmadan
+    // talebi anında gönderip/geri çekiyordu.
+    final confirmed = await showBirlikteConfirm(
+      context,
+      title: request.applied ? 'Başvurunu geri çek' : 'Destek olmak istiyor musun?',
+      message: request.applied
+          ? 'Bu kan talebine yaptığın başvuruyu geri çekmek istediğine emin misin?'
+          : 'Emin misin? Talebiniz ilgili hastaneye iletilecektir.',
+      confirmLabel: request.applied ? 'Geri çek' : 'Onayla',
+      destructive: request.applied,
+    );
+    if (confirmed != true) return;
+    if (!context.mounted) return;
     try {
       await onSupport!(request);
     } on BirlikteApiException catch (e) {

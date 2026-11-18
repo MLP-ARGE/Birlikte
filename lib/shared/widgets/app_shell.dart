@@ -24,10 +24,12 @@ class AppShell extends ConsumerWidget {
       bottomNavigationBar: BirlikteBottomNav(
         current: BirlikteTab.values[navigationShell.currentIndex],
         onSelected: (tab) {
-          // Cüzdanım `IndexedStack`'te canlı kaldığından, tek seferlik bir
-          // yenileme ekrana sonraki dönüşlerde çalışmaz — sekmeye her
-          // dokunuşta kuponları/puanı tazeliyoruz (bkz. `refreshWalletData`).
+          // Cüzdanım/Kampanyalar `IndexedStack`'te canlı kaldığından, tek
+          // seferlik bir yenileme ekrana sonraki dönüşlerde çalışmaz —
+          // sekmeye her dokunuşta sunucudan tazeliyoruz (bkz.
+          // `refreshWalletData`/`refreshCampaignsData`).
           if (tab == BirlikteTab.wallet) refreshWalletData(ref);
+          if (tab == BirlikteTab.campaigns) refreshCampaignsData(ref);
           navigationShell.goBranch(
             tab.index,
             // Aynı sekmeye tekrar dokunmak o sekmenin kök rotasına döner

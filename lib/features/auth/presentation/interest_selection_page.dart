@@ -10,6 +10,7 @@ import '../../../shared/widgets/birlikte_alert_dialog.dart';
 import '../../../shared/widgets/birlikte_app_bar.dart';
 import '../../../shared/widgets/birlikte_button.dart';
 import '../../../shared/widgets/birlikte_chip.dart';
+import '../../home/application/home_providers.dart';
 import '../data/interest_repository.dart';
 import '../data/profile_repository.dart';
 import '../domain/interest_category.dart';
@@ -60,9 +61,12 @@ class _InterestSelectionPageState
       if (!mounted) return;
       if (widget.isEditing) {
         // Profil kartındaki sayaç ("İlgi alanların N kategori") ve
-        // kampanyalardaki "sana özel" eşleşmesi bayat kalmasın.
+        // Kampanyalar sayfasındaki kategori eşleşmeleri (`eslesen`/`secili`,
+        // `seciliIlgiAlaniSayisi`) bayat kalmasın.
         ref.invalidate(profileProvider);
         ref.invalidate(interestCatalogProvider);
+        ref.invalidate(campaignsAsyncProvider);
+        ref.invalidate(campaignsFeedAsyncProvider);
         context.pop();
       } else {
         context.go(Routes.home);

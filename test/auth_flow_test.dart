@@ -88,7 +88,7 @@ void main() {
     await advance(4);
     expect(find.text('İlgi alanların neler?'), findsOneWidget);
 
-    for (final category in ['Teknoloji', 'Seyahat', 'Sinema']) {
+    for (final category in ['Yeme & İçme', 'Alışveriş', 'Sağlık']) {
       await tester.tap(find.text(category));
       await advance(2);
     }

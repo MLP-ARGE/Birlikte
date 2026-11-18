@@ -13,6 +13,8 @@ import '../features/campaigns/presentation/campaign_detail_page.dart';
 import '../features/campaigns/presentation/campaigns_list_page.dart';
 import '../features/campaigns/presentation/favorite_campaigns_page.dart';
 import '../features/kandas/presentation/kandas_page.dart';
+import '../features/notifications/presentation/notifications_page.dart';
+import '../features/wallet/presentation/points_terms_page.dart';
 import '../features/wallet/presentation/wallet_page.dart';
 import '../features/home/presentation/home_page.dart';
 import '../features/profile/presentation/communication_preferences_page.dart';
@@ -173,6 +175,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: Routes.favoriteCampaigns,
         name: 'favorite-campaigns',
         builder: (context, state) => const FavoriteCampaignsPage(),
+      ),
+      GoRoute(
+        path: Routes.pointsTerms,
+        name: 'points-terms',
+        builder: (context, state) => const PointsTermsPage(),
+      ),
+      GoRoute(
+        path: Routes.notifications,
+        name: 'notifications',
+        builder: (context, state) => const NotificationsPage(),
       ),
       // Alt navigasyonun 5 sekmesi — her biri kendi Navigator'ına sahip bir
       // "branch". Sekmeler arası geçişte push/pop animasyonu oynamaz ve her

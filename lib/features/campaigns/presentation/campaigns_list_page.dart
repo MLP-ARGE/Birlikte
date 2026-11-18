@@ -34,34 +34,11 @@ class CampaignsListPage extends ConsumerStatefulWidget {
 
 class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
   final _searchController = TextEditingController();
-  InterestTag? _category;
 
-  /// Kampanyası olan ilgi alanları, ilk görülme sırasıyla.
-  ///
-  /// Kataloğa göre hesaplanıyor; boş kategoriyi filtrede göstermek
-  /// kullanıcıyı doğrudan "sonuç yok" ekranına götürüyordu. Bir kampanya
-  /// birden fazla ilgi alanıyla eşleşebildiği için küme `id`'ye göre
-  /// tekilleştiriliyor.
-  List<InterestTag> _availableCategories = const [];
+  /// Filtre sayfasını açan [_openFilterSheet] build dışından çağrıldığı
+  /// için build sırasında buraya yazılıp oradan okunuyor.
+  List<CampaignCategoryOption> _categories = const [];
 
-  void _recomputeCategories(List<Campaign> all) {
-    final seenIds = <int>{};
-    final next = <InterestTag>[];
-    for (final c in all) {
-      for (final tag in c.ilgiAlanlari) {
-        if (seenIds.add(tag.id)) next.add(tag);
-      }
-    }
-    if (next.length != _availableCategories.length ||
-        !next.every((t) => _availableCategories.any((a) => a.id == t.id))) {
-      _availableCategories = next;
-      // Seçili kategori katalogdan düştüyse filtreyi temizle, aksi halde
-      // kullanıcı görünmeyen bir filtreyle boş listede kilitli kalır.
-      if (_category != null && !seenIds.contains(_category!.id)) {
-        _category = null;
-      }
-    }
-  }
   _SortOption _sort = _SortOption.recommended;
   String _query = '';
 
@@ -76,32 +53,40 @@ class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
     super.dispose();
   }
 
-  List<Campaign> _filterAndSort(List<Campaign> all) {
+  /// Kategori/`sadeceIlgili` filtresi artık sunucuda uygulanıyor
+  /// (`campaignsFeedAsyncProvider`) — burada yalnızca arama metni ve
+  /// kullanıcının kendi seçtiği sıralama kalıyor. "Önerilen" sunucu
+  /// sırasını KORUR, hiç sıralamıyor (backend notu: mobil yeniden
+  /// sıralamasın).
+  List<Campaign> _filterAndSort(List<Campaign> serverFiltered) {
     final query = _query.trim().toLowerCase();
-    var result = all.where((c) {
-      final matchesCategory = _category == null ||
-          c.ilgiAlanlari.any((t) => t.id == _category!.id);
-      final matchesQuery =
-          query.isEmpty ||
-          c.brand.toLowerCase().contains(query) ||
-          c.title.toLowerCase().contains(query);
-      return matchesCategory && matchesQuery;
-    }).toList();
+    var result = query.isEmpty
+        ? serverFiltered
+        : serverFiltered
+              .where(
+                (c) =>
+                    c.brand.toLowerCase().contains(query) ||
+                    c.title.toLowerCase().contains(query),
+              )
+              .toList();
 
-    result.sort((a, b) {
-      switch (_sort) {
-        case _SortOption.recommended:
-          return 0;
-        case _SortOption.endingSoon:
-          return a.daysLeft.compareTo(b.daysLeft);
-        case _SortOption.highestDiscount:
-          // Etiketler "%25"/"150 TL"/"Ücretsiz" gibi karışık biçimde; yalnızca
-          // yüzdelik olanlar karşılaştırılabilir, diğerleri sona düşer.
-          final pa = _percentValue(a.discountLabel);
-          final pb = _percentValue(b.discountLabel);
-          return pb.compareTo(pa);
-      }
-    });
+    if (_sort != _SortOption.recommended) {
+      result = [...result]..sort((a, b) {
+        switch (_sort) {
+          case _SortOption.endingSoon:
+            return a.daysLeft.compareTo(b.daysLeft);
+          case _SortOption.highestDiscount:
+            // Etiketler "%25"/"150 TL"/"Ücretsiz" gibi karışık biçimde;
+            // yalnızca yüzdelik olanlar karşılaştırılabilir, diğerleri
+            // sona düşer.
+            final pa = _percentValue(a.discountLabel);
+            final pb = _percentValue(b.discountLabel);
+            return pb.compareTo(pa);
+          case _SortOption.recommended:
+            return 0; // yukarıdaki if ile elenir, buraya düşmez.
+        }
+      });
+    }
     return result;
   }
 
@@ -110,8 +95,13 @@ class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
     return match == null ? -1 : int.parse(match.group(1)!);
   }
 
-  void _openCampaign(Campaign campaign) =>
-      context.push(Routes.campaignDetail(campaign.id));
+  // Kampanya detayı ayrı bir uçtan (`campaignDetailAsyncProvider`) okunuyor
+  // ve autoDispose değil — destek ekibi kuponu iptal ederse kullanıcı aynı
+  // kampanyaya tekrar girdiğinde bunu bayat önbellekte değil, taze görmeli.
+  void _openCampaign(Campaign campaign) {
+    ref.invalidate(campaignDetailAsyncProvider(campaign.id));
+    context.push(Routes.campaignDetail(campaign.id));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -121,20 +111,20 @@ class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
     ref.listen(campaignsFilterResetProvider, (previous, next) {
       if (previous != null && previous != next) {
         setState(() {
-          _category = null;
           _sort = _SortOption.recommended;
           _query = '';
           _searchController.clear();
         });
+        ref.read(campaignsFilterProvider.notifier).reset();
       }
     });
 
-    final all = ref.watch(campaignsProvider);
+    final filter = ref.watch(campaignsFilterProvider);
+    final feedAsync = ref.watch(campaignsFeedAsyncProvider);
     final favorites = ref.watch(favoriteSlugsProvider);
-    // build içinde: katalog birlikte-api'den asenkron geliyor, ilk kare boş
-    // listeyle çiziliyor. setState çağırmıyoruz — zaten bu kare çiziliyor.
-    _recomputeCategories(all);
-    final filtered = _filterAndSort(all);
+    final feed = feedAsync.value;
+    _categories = feed?.categories ?? _categories;
+    final filtered = _filterAndSort(feed?.campaigns ?? const []);
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -162,11 +152,28 @@ class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
                 ],
               ),
             ),
+            if (feed != null && feed.selectedInterestCount == 0) ...[
+              const SizedBox(height: _sectionGap),
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.screenH,
+                ),
+                child: _SelectInterestsPrompt(
+                  onTap: () => context.push(Routes.editInterests),
+                ),
+              ),
+            ],
             const SizedBox(height: _sectionGap),
             _CategoryChips(
-              categories: _availableCategories,
-              selected: _category,
-              onSelected: (c) => setState(() => _category = c),
+              categories: _categories,
+              filter: filter,
+              showOnlyMine: (feed?.selectedInterestCount ?? 0) > 0,
+              onSelectAll: () =>
+                  ref.read(campaignsFilterProvider.notifier).selectCategory(null),
+              onSelectOnlyMine: () =>
+                  ref.read(campaignsFilterProvider.notifier).selectOnlyMine(),
+              onSelectCategory: (id) =>
+                  ref.read(campaignsFilterProvider.notifier).selectCategory(id),
             ),
             _SortBar(
               count: filtered.length,
@@ -174,31 +181,46 @@ class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
               onSortChanged: (s) => setState(() => _sort = s),
             ),
             Expanded(
-              child: filtered.isEmpty
-                  ? const _NoResults()
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppSpacing.screenH,
-                        0,
-                        AppSpacing.screenH,
-                        AppSpacing.s8,
-                      ),
-                      itemCount: filtered.length,
-                      separatorBuilder: (_, _) =>
-                          const SizedBox(height: AppSpacing.s5),
-                      itemBuilder: (context, i) {
-                        final campaign = filtered[i];
-                        return BirlikteCampaignCard(
-                          campaign: campaign,
-                          width: double.infinity,
-                          imageHeight: 198,
-                          isFavorite: favorites.contains(campaign.id),
-                          onTap: () => _openCampaign(campaign),
-                          onFavoriteTap: () =>
-                              toggleCampaignFavorite(context, ref, campaign.id),
-                        );
-                      },
+              child: RefreshIndicator(
+                onRefresh: _onRefresh,
+                child: switch (feedAsync) {
+                  AsyncError() => _ScrollableCenter(
+                    child: _ErrorState(onRetry: _onRefresh),
+                  ),
+                  _ when filtered.isEmpty && feed != null =>
+                    _ScrollableCenter(child: _emptyStateFor(filter)),
+                  _ when feed == null => const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                  _ => ListView.separated(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.screenH,
+                      0,
+                      AppSpacing.screenH,
+                      AppSpacing.s8,
                     ),
+                    itemCount: filtered.length,
+                    separatorBuilder: (_, _) =>
+                        const SizedBox(height: AppSpacing.s5),
+                    itemBuilder: (context, i) {
+                      final campaign = filtered[i];
+                      return BirlikteCampaignCard(
+                        campaign: campaign,
+                        width: double.infinity,
+                        imageHeight: 198,
+                        isFavorite: favorites.contains(campaign.id),
+                        onTap: () => _openCampaign(campaign),
+                        onFavoriteTap: () => toggleCampaignFavorite(
+                          context,
+                          ref,
+                          campaign.id,
+                        ),
+                      );
+                    },
+                  ),
+                },
+              ),
             ),
           ],
         ),
@@ -206,7 +228,29 @@ class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
     );
   }
 
+  /// Arama metni doluyken, hangi kategori seçili olursa olsun aynı "arama
+  /// sonucu yok" mesajı — kullanıcı o an metni daraltmaya çalışıyor.
+  Widget _emptyStateFor(CampaignsFilter filter) {
+    if (_query.trim().isNotEmpty) return const _NoResults();
+    if (filter.sadeceIlgili) return const _EmptyOnlyMine();
+    if (filter.ilgiAlaniId case final id?) {
+      final name = _categories
+          .cast<CampaignCategoryOption?>()
+          .firstWhere((c) => c?.id == id, orElse: () => null)
+          ?.ad;
+      if (name != null) return _EmptyCategory(categoryName: name);
+    }
+    return const _NoResults();
+  }
+
+  Future<void> _onRefresh() => Future.wait([
+    ref.refresh(campaignsAsyncProvider.future),
+    ref.refresh(campaignsFeedAsyncProvider.future),
+  ]);
+
   void _openFilterSheet() {
+    final filter = ref.read(campaignsFilterProvider);
+    final feed = ref.read(campaignsFeedAsyncProvider).value;
     showModalBottomSheet<void>(
       context: context,
       // Bulgu UI-003: sheet kök navigator'da açılmalı.
@@ -217,7 +261,7 @@ class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
       // karartma barı kapsamıyor ve sheet içeriği barla kesişiyor.
       useRootNavigator: true,
       backgroundColor: AppColors.surface,
-      // Kategori sayısı (Tümü + 8) modalın varsayılan yüksekliğini aşıyor;
+      // Kategori sayısı modalın varsayılan yüksekliğini aşabiliyor;
       // isScrollControlled olmadan bu, içerik kırpılmadan taşma uyarısına
       // (sarı-siyah şerit) yol açıyordu.
       isScrollControlled: true,
@@ -225,12 +269,118 @@ class _CampaignsListPageState extends ConsumerState<CampaignsListPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
       ),
       builder: (sheetContext) => _CategoryFilterSheet(
-        categories: _availableCategories,
-        selected: _category,
-        onSelected: (c) {
-          setState(() => _category = c);
+        categories: _categories,
+        filter: filter,
+        showOnlyMine: (feed?.selectedInterestCount ?? 0) > 0,
+        onSelectAll: () {
+          ref.read(campaignsFilterProvider.notifier).selectCategory(null);
           Navigator.pop(sheetContext);
         },
+        onSelectOnlyMine: () {
+          ref.read(campaignsFilterProvider.notifier).selectOnlyMine();
+          Navigator.pop(sheetContext);
+        },
+        onSelectCategory: (id) {
+          ref.read(campaignsFilterProvider.notifier).selectCategory(id);
+          Navigator.pop(sheetContext);
+        },
+      ),
+    );
+  }
+}
+
+/// Boş/hata durumlarını da bir `Scrollable` içine sarar — aksi halde
+/// `RefreshIndicator` sürüklemeyi algılayamıyor (içinde kaydırılabilir bir
+/// şey yok), aşağı çekip yenileme çalışmaz.
+class _ScrollableCenter extends StatelessWidget {
+  const _ScrollableCenter({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({required this.onRetry});
+
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.screenH),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              AppIcons.circleAlert,
+              size: 48,
+              color: AppColors.iconSubtle,
+            ),
+            const SizedBox(height: AppSpacing.s5),
+            Text(
+              'Kampanyalar yüklenemedi',
+              style: AppTypography.h4.copyWith(color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: AppSpacing.s2),
+            Text(
+              'Bağlantını kontrol edip tekrar dene.',
+              textAlign: TextAlign.center,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.s4),
+            TextButton(onPressed: onRetry, child: const Text('Tekrar dene')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// `seciliIlgiAlaniSayisi == 0` — backend notu: "ilgi alanlarını seç"
+/// yönlendirmesi gösterin.
+class _SelectInterestsPrompt extends StatelessWidget {
+  const _SelectInterestsPrompt({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSunken,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Row(
+        children: [
+          const Icon(AppIcons.star, size: 20, color: AppColors.iconDefault),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'İlgi alanlarını seç, sana uygun kampanyalar öne çıksın.',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.s3),
+          TextButton(onPressed: onTap, child: const Text('Seç')),
+        ],
       ),
     );
   }
@@ -336,19 +486,25 @@ class _SearchRow extends StatelessWidget {
 class _CategoryChips extends StatelessWidget {
   const _CategoryChips({
     required this.categories,
-    required this.selected,
-    required this.onSelected,
+    required this.filter,
+    required this.showOnlyMine,
+    required this.onSelectAll,
+    required this.onSelectOnlyMine,
+    required this.onSelectCategory,
   });
 
-  /// Yalnızca kampanyası olan kategoriler.
-  ///
-  /// Enum'un tamamını göstermiyoruz: katalog değiştikçe bazı kategoriler
-  /// boşalıyor (Sağlık, Otomotiv, Akaryakıt, Evcil Hayvan şu an öyle) ve
-  /// boş bir filtreye dokunmak kullanıcıyı "sonuç yok" ekranına düşürüyor.
-  final List<InterestTag> categories;
+  /// İlgi alanı kataloğunun TAMAMI — `GET /api/kampanyalar`'ın üst seviye
+  /// `ilgiAlanlari` dizisinden (kampanyası olmayan bir kategori de sekme
+  /// olarak görünür, seçilince kendi boş durumunu anlatır).
+  final List<CampaignCategoryOption> categories;
+  final CampaignsFilter filter;
 
-  final InterestTag? selected;
-  final ValueChanged<InterestTag?> onSelected;
+  /// Kullanıcı en az bir ilgi alanı seçtiyse "İlgi Alanlarım" çipi gösterilir.
+  final bool showOnlyMine;
+
+  final VoidCallback onSelectAll;
+  final VoidCallback onSelectOnlyMine;
+  final ValueChanged<int> onSelectCategory;
 
   static const _height = 48.0;
 
@@ -368,15 +524,24 @@ class _CategoryChips extends StatelessWidget {
         children: [
           BirlikteChip(
             label: 'Tümü',
-            selected: selected == null,
-            onTap: () => onSelected(null),
+            selected: filter.ilgiAlaniId == null && !filter.sadeceIlgili,
+            onTap: onSelectAll,
           ),
+          if (showOnlyMine) ...[
+            const SizedBox(width: AppSpacing.s3),
+            BirlikteChip(
+              label: 'İlgi Alanlarım',
+              selected: filter.sadeceIlgili,
+              onTap: onSelectOnlyMine,
+            ),
+          ],
           for (final category in categories) ...[
             const SizedBox(width: AppSpacing.s3),
             BirlikteChip(
               label: category.ad,
-              selected: selected?.id == category.id,
-              onTap: () => onSelected(category),
+              selected: filter.ilgiAlaniId == category.id,
+              marked: category.secili,
+              onTap: () => onSelectCategory(category.id),
             ),
           ],
         ],
@@ -488,6 +653,84 @@ class _NoResults extends StatelessWidget {
   }
 }
 
+/// Seçili kategoride henüz kampanya yoksa — genel "sonuç bulunamadı"
+/// yerine hangi kategoride olduğunu söyleyen özel bir boş durum.
+class _EmptyCategory extends StatelessWidget {
+  const _EmptyCategory({required this.categoryName});
+
+  final String categoryName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.screenH),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              AppIcons.ticketPercent,
+              size: 48,
+              color: AppColors.iconSubtle,
+            ),
+            const SizedBox(height: AppSpacing.s5),
+            Text(
+              '$categoryName kategorisinde kampanya yok',
+              textAlign: TextAlign.center,
+              style: AppTypography.h4.copyWith(color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: AppSpacing.s2),
+            Text(
+              'Bu kategoride şu anda aktif bir kampanya bulunmuyor, '
+              'daha sonra tekrar kontrol et.',
+              textAlign: TextAlign.center,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "İlgi Alanlarım" (`sadeceIlgili=true`) seçiliyken eşleşen kampanya yoksa.
+class _EmptyOnlyMine extends StatelessWidget {
+  const _EmptyOnlyMine();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.screenH),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(AppIcons.star, size: 48, color: AppColors.iconSubtle),
+            const SizedBox(height: AppSpacing.s5),
+            Text(
+              'İlgi alanlarına uygun kampanya yok',
+              textAlign: TextAlign.center,
+              style: AppTypography.h4.copyWith(color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: AppSpacing.s2),
+            Text(
+              'Seçtiğin ilgi alanlarıyla eşleşen aktif bir kampanya '
+              'bulunmuyor; "Tümü" sekmesinden diğer kampanyalara göz '
+              'atabilirsin.',
+              textAlign: TextAlign.center,
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Filtre düğmesinin açtığı sayfa alt sayfası (Figma: `campaign-filter`
 /// 3:620 sadeleştirildi — kategori seçimi zaten çip satırında var, burada
 /// ek olarak sunulmuyor; bu sayfa aynı seçimi büyük dokunma hedefli bir
@@ -495,18 +738,24 @@ class _NoResults extends StatelessWidget {
 class _CategoryFilterSheet extends StatelessWidget {
   const _CategoryFilterSheet({
     required this.categories,
-    required this.selected,
-    required this.onSelected,
+    required this.filter,
+    required this.showOnlyMine,
+    required this.onSelectAll,
+    required this.onSelectOnlyMine,
+    required this.onSelectCategory,
   });
 
   /// Yatay çubukla aynı küme — iki yerde farklı liste göstermek kafa karıştırır.
-  final List<InterestTag> categories;
-  final InterestTag? selected;
-  final ValueChanged<InterestTag?> onSelected;
+  final List<CampaignCategoryOption> categories;
+  final CampaignsFilter filter;
+  final bool showOnlyMine;
+  final VoidCallback onSelectAll;
+  final VoidCallback onSelectOnlyMine;
+  final ValueChanged<int> onSelectCategory;
 
   @override
   Widget build(BuildContext context) {
-    // Tümü + 8 kategori, sabit yükseklikli modalın varsayılan alanını
+    // Kategori sayısı, sabit yükseklikli modalın varsayılan alanını
     // aşabiliyor (kısa ekranlarda, büyük yazı tipi ölçeğinde). İçerik
     // sığdığında olduğu boyutta durur, sığmadığında kendi içinde kaydırır —
     // dışarıdaki modal büyümez.
@@ -531,14 +780,21 @@ class _CategoryFilterSheet extends StatelessWidget {
               const SizedBox(height: AppSpacing.s4),
               _FilterRow(
                 label: 'Tümü',
-                selected: selected == null,
-                onTap: () => onSelected(null),
+                selected: filter.ilgiAlaniId == null && !filter.sadeceIlgili,
+                onTap: onSelectAll,
               ),
+              if (showOnlyMine)
+                _FilterRow(
+                  label: 'İlgi Alanlarım',
+                  selected: filter.sadeceIlgili,
+                  onTap: onSelectOnlyMine,
+                ),
               for (final category in categories)
                 _FilterRow(
                   label: category.ad,
-                  selected: selected?.id == category.id,
-                  onTap: () => onSelected(category),
+                  selected: filter.ilgiAlaniId == category.id,
+                  marked: category.secili,
+                  onTap: () => onSelectCategory(category.id),
                 ),
             ],
           ),
@@ -553,10 +809,12 @@ class _FilterRow extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.marked = false,
   });
 
   final String label;
   final bool selected;
+  final bool marked;
   final VoidCallback onTap;
 
   @override
@@ -568,11 +826,25 @@ class _FilterRow extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: Text(
-                label,
-                style: AppTypography.bodyLarge.copyWith(
-                  color: AppColors.textPrimary,
-                ),
+              child: Row(
+                children: [
+                  Text(
+                    label,
+                    style: AppTypography.bodyLarge.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  if (marked && !selected) ...[
+                    const SizedBox(width: AppSpacing.s2),
+                    const DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: AppColors.brand,
+                        shape: BoxShape.circle,
+                      ),
+                      child: SizedBox(width: 6, height: 6),
+                    ),
+                  ],
+                ],
               ),
             ),
             if (selected)

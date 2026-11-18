@@ -54,6 +54,8 @@ class ProfileRepository {
       bloodType: row['kanGrubu'] as String?,
       missingInfo: (row['eksikBilgiler'] as List<dynamic>? ?? const [])
           .cast<String>(),
+      unreadNotificationCount:
+          (row['okunmamisBildirimSayisi'] as num?)?.toInt() ?? 0,
     );
   }
 

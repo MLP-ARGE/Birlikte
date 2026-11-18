@@ -17,7 +17,9 @@ import '../../../shared/widgets/birlikte_avatar.dart';
 import '../../../shared/widgets/birlikte_institution_badge.dart';
 import '../../auth/application/verified_profile_provider.dart';
 import '../../auth/data/birlikte_auth_repository.dart';
+import '../../auth/data/profile_repository.dart';
 import '../../auth/domain/verified_profile.dart';
+import '../../home/application/home_providers.dart';
 import '../data/profile_stats.dart';
 import 'widgets/blood_type_sheet.dart';
 import 'widgets/settings_tile.dart';
@@ -35,110 +37,120 @@ class ProfilePage extends ConsumerWidget {
     final profile = ref.watch(verifiedProfileProvider);
     final stats = ref.watch(profileStatsProvider);
 
+    Future<void> onRefresh() => Future.wait([
+      ref.refresh(profileProvider.future),
+      ref.refresh(familyMembersAsyncProvider.future),
+      ref.refresh(campaignsAsyncProvider.future),
+    ]);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         bottom: false,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenH,
-            AppSpacing.s5,
-            AppSpacing.screenH,
-            AppSpacing.s8,
-          ),
-          children: [
-            // Bildirim zili kaldırıldı: bildirim ekranı bu sürümde yok ve
-            // hiçbir şey yapmayan bir düğme bırakmak istemiyoruz.
-            Text('Profil', style: AppTypography.h1),
-            const SizedBox(height: AppSpacing.s5),
-            // Kişisel bilgiler ekranı yok; kart bilgi gösteriyor, tıklanmıyor.
-            _ProfileCard(profile: profile),
-            const SizedBox(height: AppSpacing.s4),
-            Text(
-              // PDKS bölge bilgisi vermiyor, birlikte-api sicil numarası
-              // vermiyor; ikisi de boşken sarkık bir metin kalmasın diye
-              // parçalar süzülüyor.
-              [
-                if (profile.employeeNo case final no? when no.isNotEmpty)
-                  'Sicil No: $no',
-                if (profile.facility.isNotEmpty) profile.facility,
-                if (profile.region.isNotEmpty) profile.region,
-              ].join(' · '),
-              style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
-              ),
+        child: RefreshIndicator(
+          onRefresh: onRefresh,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenH,
+              AppSpacing.s5,
+              AppSpacing.screenH,
+              AppSpacing.s8,
             ),
-            const SizedBox(height: AppSpacing.s7),
-
-            // Bu sürümde YALNIZCA çalışan öğeler gösteriliyor.
-            //
-            // Kişisel bilgiler, Ailem, İlgi alanların, Dil ve Görünüm
-            // ekranları henüz kurulmadı; hiçbir şey yapmayan satırlar
-            // Apple'ın 2.1 "App Completeness" kuralına takılıyor.
-            //
-            // Dil ve Görünüm özellikle dikkat istiyor: veritabanında alanları
-            // var ama uygulama ne dil değiştirebiliyor ne de koyu temaya
-            // geçebiliyor. Çalışır görünen ama etkisi olmayan bir ayar,
-            // olmayandan daha kötü.
-            SettingsSection(
-              title: 'HESABIM',
-              children: [
-                SettingsTile(
-                  icon: AppIcons.heart,
-                  label: 'Favori kampanyalar',
-                  value: stats.whenOrNull(data: (s) => '${s.favoriteCount}'),
-                  onTap: () => context.push(Routes.favoriteCampaigns),
+            children: [
+              // Bildirim zili kaldırıldı: bildirim ekranı bu sürümde yok ve
+              // hiçbir şey yapmayan bir düğme bırakmak istemiyoruz.
+              Text('Profil', style: AppTypography.h1),
+              const SizedBox(height: AppSpacing.s5),
+              // Kişisel bilgiler ekranı yok; kart bilgi gösteriyor, tıklanmıyor.
+              _ProfileCard(profile: profile),
+              const SizedBox(height: AppSpacing.s4),
+              Text(
+                // PDKS bölge bilgisi vermiyor, birlikte-api sicil numarası
+                // vermiyor; ikisi de boşken sarkık bir metin kalmasın diye
+                // parçalar süzülüyor.
+                [
+                  if (profile.employeeNo case final no? when no.isNotEmpty)
+                    'Sicil No: $no',
+                  if (profile.facility.isNotEmpty) profile.facility,
+                  if (profile.region.isNotEmpty) profile.region,
+                ].join(' · '),
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
                 ),
-                SettingsTile(
-                  icon: AppIcons.bell,
-                  label: 'Bildirim tercihleri',
-                  onTap: () => context.push(Routes.communicationPreferences),
-                ),
-                SettingsTile(
-                  icon: AppIcons.star,
-                  label: 'İlgi alanların',
-                  value: stats.whenOrNull(data: (s) => '${s.interestCount}'),
-                  onTap: () => context.push(Routes.editInterests),
-                ),
-                SettingsTile(
-                  icon: AppIcons.droplet,
-                  label: 'Kan grubu',
-                  // `/api/me`'nin kendi alanından — ayrı bir uca çıkıp ayrı
-                  // bir önbellek tutmuyoruz (bkz. `VerifiedProfile.bloodType`).
-                  value: profile.bloodType ?? 'Ekle',
-                  onTap: () => showBloodTypeSheet(context, profile.bloodType),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.s6),
-
-            // Adresi tanımlı olmayan satır hiç gösterilmiyor; bölümün
-            // tamamı boşalırsa başlığı da çizilmiyor.
-            if (_legalTiles(context).isNotEmpty) ...[
-              SettingsSection(
-                title: 'YASAL VE DESTEK',
-                children: _legalTiles(context),
               ),
               const SizedBox(height: AppSpacing.s7),
-            ],
 
-            _SignOutButton(onTap: () => _confirmSignOut(context, ref)),
-            const SizedBox(height: AppSpacing.s5),
-            Center(
-              child: Text(
-                // Sürüm asenkron geliyor; henüz yüklenmediyse yalnızca
-                // uygulama adını gösteriyoruz, satır zıplamasın diye.
-                switch (ref.watch(appVersionProvider)) {
-                  AsyncData(:final value) when value.isNotEmpty =>
-                    '${AppConfig.appName} v$value · ${AppConfig.buildYear}',
-                  _ => '${AppConfig.appName} · ${AppConfig.buildYear}',
-                },
-                style: AppTypography.caption.copyWith(
-                  color: AppColors.textTertiary,
+              // Bu sürümde YALNIZCA çalışan öğeler gösteriliyor.
+              //
+              // Kişisel bilgiler, Ailem, İlgi alanların, Dil ve Görünüm
+              // ekranları henüz kurulmadı; hiçbir şey yapmayan satırlar
+              // Apple'ın 2.1 "App Completeness" kuralına takılıyor.
+              //
+              // Dil ve Görünüm özellikle dikkat istiyor: veritabanında alanları
+              // var ama uygulama ne dil değiştirebiliyor ne de koyu temaya
+              // geçebiliyor. Çalışır görünen ama etkisi olmayan bir ayar,
+              // olmayandan daha kötü.
+              SettingsSection(
+                title: 'HESABIM',
+                children: [
+                  SettingsTile(
+                    icon: AppIcons.heart,
+                    label: 'Favori kampanyalar',
+                    value: stats.whenOrNull(data: (s) => '${s.favoriteCount}'),
+                    onTap: () => context.push(Routes.favoriteCampaigns),
+                  ),
+                  SettingsTile(
+                    icon: AppIcons.bell,
+                    label: 'Bildirim tercihleri',
+                    onTap: () => context.push(Routes.communicationPreferences),
+                  ),
+                  SettingsTile(
+                    icon: AppIcons.star,
+                    label: 'İlgi alanların',
+                    value: stats.whenOrNull(data: (s) => '${s.interestCount}'),
+                    onTap: () => context.push(Routes.editInterests),
+                  ),
+                  SettingsTile(
+                    icon: AppIcons.droplet,
+                    label: 'Kan grubu',
+                    // `/api/me`'nin kendi alanından — ayrı bir uca çıkıp ayrı
+                    // bir önbellek tutmuyoruz (bkz. `VerifiedProfile.bloodType`).
+                    value: profile.bloodType ?? 'Ekle',
+                    onTap: () => showBloodTypeSheet(context, profile.bloodType),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.s6),
+
+              // Adresi tanımlı olmayan satır hiç gösterilmiyor; bölümün
+              // tamamı boşalırsa başlığı da çizilmiyor.
+              if (_legalTiles(context).isNotEmpty) ...[
+                SettingsSection(
+                  title: 'YASAL VE DESTEK',
+                  children: _legalTiles(context),
+                ),
+                const SizedBox(height: AppSpacing.s7),
+              ],
+
+              _SignOutButton(onTap: () => _confirmSignOut(context, ref)),
+              const SizedBox(height: AppSpacing.s5),
+              Center(
+                child: Text(
+                  // Sürüm asenkron geliyor; henüz yüklenmediyse yalnızca
+                  // uygulama adını gösteriyoruz, satır zıplamasın diye.
+                  switch (ref.watch(appVersionProvider)) {
+                    AsyncData(:final value) when value.isNotEmpty =>
+                      '${AppConfig.appName} v$value · ${AppConfig.buildYear}',
+                    _ => '${AppConfig.appName} · ${AppConfig.buildYear}',
+                  },
+                  style: AppTypography.caption.copyWith(
+                    color: AppColors.textTertiary,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -182,7 +194,8 @@ class ProfilePage extends ConsumerWidget {
     final confirmed = await showBirlikteConfirm(
       context,
       title: 'Çıkış yap',
-      message: 'Hesabından çıkmak istediğine emin misin? Tekrar girmek için '
+      message:
+          'Hesabından çıkmak istediğine emin misin? Tekrar girmek için '
           'doğrulama kodu gerekecek.',
       confirmLabel: 'Çıkış yap',
       destructive: true,

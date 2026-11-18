@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../app/routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_dimens.dart';
 import '../../../core/theme/app_icons.dart';
@@ -21,49 +23,74 @@ class WalletPage extends ConsumerWidget {
     final points = ref.watch(pointsSummaryProvider);
     final couponsAsync = ref.watch(couponsAsyncProvider);
 
+    // Cüzdanım'daki aynı karttan farklı olarak burada "Cüzdanım'a git"
+    // anlamı yok (zaten oradayız) — ikisi de puanın ne işe yaradığını
+    // anlatan Koşullar sayfasına gidiyor (bkz. `PointsTermsPage`).
+    void goToPointsTerms() {
+      // Metin yönetimden değiştirilebilir ve gömülü değil — sayfa her
+      // açıldığında sunucudan taze çekilsin diye önce invalidate ediliyor.
+      ref.invalidate(pointsTermsAsyncProvider);
+      context.push(Routes.pointsTerms);
+    }
+
+    Future<void> onRefresh() => Future.wait([
+      ref.refresh(couponsAsyncProvider.future),
+      ref.refresh(pointsSummaryAsyncProvider.future),
+    ]);
+
     return Scaffold(
       backgroundColor: AppColors.surface,
       body: SafeArea(
         bottom: false,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenH,
-            AppSpacing.s5,
-            AppSpacing.screenH,
-            AppSpacing.s8,
-          ),
-          children: [
-            Text('Cüzdanım', style: AppTypography.h1),
-            const SizedBox(height: AppSpacing.s5),
-            PointsCard(summary: points),
-            const SizedBox(height: AppSpacing.s7),
-            Text('Kuponlarım', style: AppTypography.h4),
-            const SizedBox(height: AppSpacing.s4),
-            switch (couponsAsync) {
-              AsyncLoading() => const Padding(
-                padding: EdgeInsets.symmetric(vertical: AppSpacing.s7),
-                child: Center(child: CircularProgressIndicator()),
+        child: RefreshIndicator(
+          onRefresh: onRefresh,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenH,
+              AppSpacing.s5,
+              AppSpacing.screenH,
+              AppSpacing.s8,
+            ),
+            children: [
+              Text('Cüzdanım', style: AppTypography.h1),
+              const SizedBox(height: AppSpacing.s5),
+              PointsCard(
+                summary: points,
+                onTap: goToPointsTerms,
+                onSpendTap: goToPointsTerms,
               ),
-              AsyncError() => const _Empty(
-                icon: AppIcons.ticket,
-                text: 'Kuponlar yüklenemedi. Bağlantını kontrol edip '
-                    'tekrar dene.',
-              ),
-              AsyncData(:final value) when value.isEmpty => const _Empty(
-                icon: AppIcons.ticket,
-                text: 'Henüz kuponun yok. Kampanyalar sekmesinden bir '
-                    'kampanya seçip kuponunu oluşturabilirsin.',
-              ),
-              AsyncData(:final value) => Column(
-                children: [
-                  for (final c in value) ...[
-                    _CouponCard(coupon: c),
-                    const SizedBox(height: AppSpacing.s4),
+              const SizedBox(height: AppSpacing.s7),
+              Text('Kuponlarım', style: AppTypography.h4),
+              const SizedBox(height: AppSpacing.s4),
+              switch (couponsAsync) {
+                AsyncLoading() => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.s7),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                AsyncError() => const _Empty(
+                  icon: AppIcons.ticket,
+                  text:
+                      'Kuponlar yüklenemedi. Bağlantını kontrol edip '
+                      'tekrar dene.',
+                ),
+                AsyncData(:final value) when value.isEmpty => const _Empty(
+                  icon: AppIcons.ticket,
+                  text:
+                      'Henüz kuponun yok. Kampanyalar sekmesinden bir '
+                      'kampanya seçip kuponunu oluşturabilirsin.',
+                ),
+                AsyncData(:final value) => Column(
+                  children: [
+                    for (final c in value) ...[
+                      _CouponCard(coupon: c),
+                      const SizedBox(height: AppSpacing.s4),
+                    ],
                   ],
-                ],
-              ),
-            },
-          ],
+                ),
+              },
+            ],
+          ),
         ),
       ),
     );

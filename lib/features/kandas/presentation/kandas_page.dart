@@ -24,47 +24,52 @@ class KandasPage extends ConsumerWidget {
       backgroundColor: AppColors.surface,
       body: SafeArea(
         bottom: false,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenH,
-            AppSpacing.s5,
-            AppSpacing.screenH,
-            AppSpacing.s8,
-          ),
-          children: [
-            Text('Kandaş', style: AppTypography.h1),
-            const SizedBox(height: AppSpacing.s3),
-            Text(
-              'MLPCARE hastanelerindeki açık kan bağışı talepleri.',
-              style: AppTypography.bodySmall.copyWith(
-                color: AppColors.textSecondary,
-              ),
+        child: RefreshIndicator(
+          onRefresh: () => ref.refresh(bloodRequestsAsyncProvider.future),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenH,
+              AppSpacing.s5,
+              AppSpacing.screenH,
+              AppSpacing.s8,
             ),
-            const SizedBox(height: AppSpacing.s6),
-            switch (requestsAsync) {
-              AsyncLoading() => const Padding(
-                padding: EdgeInsets.symmetric(vertical: AppSpacing.s7),
-                child: Center(child: CircularProgressIndicator()),
+            children: [
+              Text('Kandaş', style: AppTypography.h1),
+              const SizedBox(height: AppSpacing.s3),
+              Text(
+                'MLPCARE hastanelerindeki açık kan bağışı talepleri.',
+                style: AppTypography.bodySmall.copyWith(
+                  color: AppColors.textSecondary,
+                ),
               ),
-              AsyncError() => const _Empty(
-                text: 'Talepler yüklenemedi. Bağlantını kontrol edip '
-                    'tekrar dene.',
-              ),
-              AsyncData(:final value) when value.isEmpty => const _Empty(
-                text: 'Şu anda açık kan talebi yok.',
-              ),
-              // Ana sayfadaki bölümle aynı bileşen: aynı veri iki yerde
-              // farklı görünmesin.
-              // `KandasSection` bu durumda kendi "Tüm talepler ilgili
-              // hastaneler tarafından doğrulanır." notunu zaten gösteriyor
-              // — burada tekrar etmiyoruz.
-              AsyncData(:final value) => KandasSection(
-                requests: value,
-                onSupport: (request) =>
-                    toggleBloodRequestApplication(ref, request),
-              ),
-            },
-          ],
+              const SizedBox(height: AppSpacing.s6),
+              switch (requestsAsync) {
+                AsyncLoading() => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.s7),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                AsyncError() => const _Empty(
+                  text:
+                      'Talepler yüklenemedi. Bağlantını kontrol edip '
+                      'tekrar dene.',
+                ),
+                AsyncData(:final value) when value.isEmpty => const _Empty(
+                  text: 'Şu anda açık kan talebi yok.',
+                ),
+                // Ana sayfadaki bölümle aynı bileşen: aynı veri iki yerde
+                // farklı görünmesin.
+                // `KandasSection` bu durumda kendi "Tüm talepler ilgili
+                // hastaneler tarafından doğrulanır." notunu zaten gösteriyor
+                // — burada tekrar etmiyoruz.
+                AsyncData(:final value) => KandasSection(
+                  requests: value,
+                  onSupport: (request) =>
+                      toggleBloodRequestApplication(ref, request),
+                ),
+              },
+            ],
+          ),
         ),
       ),
     );

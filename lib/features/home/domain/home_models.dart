@@ -13,6 +13,34 @@ class PointsSummary {
   final int pending;
 }
 
+/// Puan kazanma/kullanma koşulları — `GET /api/puan/kosullar`'dan.
+///
+/// Metin yönetimden değiştirilebilir; uygulamaya gömülmüyor, sayfası her
+/// açıldığında yeniden çekiliyor (bkz. `pointsTermsAsyncProvider`'ın çağrı
+/// yerlerindeki `ref.invalidate`). `versiyon` alanı yok sayılıyor — bu
+/// yüzden gerek de kalmıyor, zaten her açılışta taze veri çekiliyor.
+class PointsTerms {
+  const PointsTerms({
+    required this.baslik,
+    required this.giris,
+    required this.bolumler,
+    this.guncellemeTarihi,
+  });
+
+  final String baslik;
+  final String giris;
+  final List<PointsTermsSection> bolumler;
+  final DateTime? guncellemeTarihi;
+}
+
+/// Bir bölüm — başlık + düz metin madde listesi.
+class PointsTermsSection {
+  const PointsTermsSection({required this.baslik, required this.maddeler});
+
+  final String baslik;
+  final List<String> maddeler;
+}
+
 /// Kampanyanın eşleştiği ilgi alanı (Figma: `Chip / Category` —
 /// `chips-row` 445:10135).
 ///
@@ -21,6 +49,11 @@ class PointsSummary {
 /// sınıf yalnızca bir kampanyanın HANGİ ilgi alanlarıyla eşleştiğini taşıyor.
 /// Bir kampanya birden fazla ilgi alanıyla eşleşebilir — tek bir kategoriye
 /// ait değil.
+///
+/// [CampaignCategoryOption] ile KARIŞTIRILMAMALI (backend'in kendi uyarısı):
+/// bu sınıf "bu kampanya hangi ilgi alanlarıyla eşleşiyor" (`eslesen`), o
+/// sınıf "sistemdeki tüm ilgi alanları + kullanıcı hangisini seçmiş"
+/// (`secili`) sorusuna cevap verir — ayrı dizilerden, ayrı amaçlarla gelirler.
 class InterestTag {
   const InterestTag({
     required this.id,
@@ -36,6 +69,47 @@ class InterestTag {
   /// Bu ilgi alanı, oturum sahibinin seçtiği ilgi alanlarıyla eşleşiyor mu —
   /// "sana özel" sıralamasında öne alınma ölçütü.
   final bool eslesen;
+}
+
+/// Kampanyalar sekmesinin kategori çipleri — `GET /api/kampanyalar`
+/// yanıtının ÜST seviye `ilgiAlanlari` dizisinden (sistemdeki TÜM aktif ilgi
+/// alanları, kampanyadan bağımsız).
+///
+/// [InterestTag] ile KARIŞTIRILMAMALI — bkz. oradaki not.
+class CampaignCategoryOption {
+  const CampaignCategoryOption({
+    required this.id,
+    required this.ad,
+    required this.secili,
+    this.ikon,
+  });
+
+  final int id;
+  final String ad;
+  final String? ikon;
+
+  /// Kullanıcının kendi seçtiği ilgi alanlarından biri mi — o an aktif
+  /// filtre bu olmasa bile çipte kalıcı bir işaret olarak gösterilir
+  /// ("dolu çip gibi", backend'in kendi tabiriyle).
+  final bool secili;
+}
+
+/// `GET /api/kampanyalar` yanıtının tamamı: kampanyalar zaten sunucuda
+/// kullanıcının seçtiği ilgi alanlarına göre sıralı gelir (eşleşenler önde)
+/// — istemci YENİDEN SIRALAMAZ, geldiği sırayla gösterir.
+class CampaignsFeed {
+  const CampaignsFeed({
+    required this.campaigns,
+    required this.categories,
+    required this.selectedInterestCount,
+  });
+
+  final List<Campaign> campaigns;
+  final List<CampaignCategoryOption> categories;
+
+  /// `seciliIlgiAlaniSayisi` — 0 ise kullanıcı hiç ilgi alanı seçmemiş;
+  /// ekran "ilgi alanlarını seç" yönlendirmesi göstermeli.
+  final int selectedInterestCount;
 }
 
 /// Kampanyanın geçerli olduğu şube/kampüs (Figma: `branch-card`,
@@ -183,15 +257,19 @@ class CampaignCoupon {
 
   final String code;
 
-  /// Yalnızca `SURESI_DOLDU` belgelendi; diğer durumlar olduğu gibi
-  /// gösteriliyor.
+  /// `AKTIF` | `KULLANILDI` | `SURESI_DOLDU` (backend sözleşmesi).
   final String status;
   final DateTime? expiresAt;
 
+  bool get isActive => status == 'AKTIF';
+  bool get isUsed => status == 'KULLANILDI';
   bool get isExpired => status == 'SURESI_DOLDU';
 
-  String get statusLabel =>
-      isExpired ? 'Süresi doldu' : (status == 'AKTIF' ? 'Aktif' : status);
+  String get statusLabel => switch (status) {
+    'KULLANILDI' => 'Kullanıldı',
+    'SURESI_DOLDU' => 'Süresi doldu',
+    _ => 'Aktif',
+  };
 }
 
 /// Kan bağışı talebi (Figma: `request-row` 205:437).

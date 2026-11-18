@@ -20,6 +20,8 @@ abstract final class Routes {
   static const profile = '/profil';
   static const communicationPreferences = '/bildirim-tercihleri';
   static const favoriteCampaigns = '/favori-kampanyalar';
+  static const pointsTerms = '/puan-kosullari';
+  static const notifications = '/bildirimler';
 
   /// Profil → "İlgi alanların" — onboarding'deki ile AYNI ekran
   /// ([InterestSelectionPage]), yalnızca `isEditing: true` ile açılıp

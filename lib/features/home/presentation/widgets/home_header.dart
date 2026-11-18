@@ -10,17 +10,19 @@ import '../../../auth/domain/verified_profile.dart';
 
 /// Ana sayfa başlığı (Figma: `app-header` 201:125 — 61 yüksek, gap 12,
 /// iç boşluk sol 24 / sağ 14, üst 4 / alt 12).
+///
+/// Bildirim zili: artık gerçek bir bildirim ekranı var (bkz.
+/// `NotificationsPage`); rozet `profile.unreadNotificationCount`'tan
+/// (`/api/me`'nin kendi alanı, ayrı çağrı gerekmiyor).
 class HomeHeader extends StatelessWidget {
   const HomeHeader({
     super.key,
     required this.profile,
-    required this.hasNotifications,
-    this.onNotificationsTap,
+    required this.onNotificationsTap,
   });
 
   final VerifiedProfile profile;
-  final bool hasNotifications;
-  final VoidCallback? onNotificationsTap;
+  final VoidCallback onNotificationsTap;
 
   static const _bellSize = 44.0;
   static const _dotSize = 9.0;
@@ -63,7 +65,7 @@ class HomeHeader extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.s4),
           _NotificationBell(
-            hasUnread: hasNotifications,
+            hasUnread: profile.unreadNotificationCount > 0,
             onTap: onNotificationsTap,
           ),
         ],
@@ -76,7 +78,7 @@ class _NotificationBell extends StatelessWidget {
   const _NotificationBell({required this.hasUnread, required this.onTap});
 
   final bool hasUnread;
-  final VoidCallback? onTap;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
